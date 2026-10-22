@@ -1,0 +1,250 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Rol {
+  ADMIN
+  OPERADOR
+}
+
+enum TipoPregunta {
+  TEXTO
+  NUMERO
+  BOOLEANO
+  SELECCION_UNICA
+  SELECCION_MULTIPLE
+  ESCALA
+  FECHA
+}
+
+enum TipoCapa {
+  GENERAL
+  SECCION
+  BASE
+  ADICIONAL
+}
+
+enum Agregacion {
+  SUMA
+  PROMEDIO
+  CONTEO
+}
+
+enum EstadoIA {
+  PENDIENTE
+  PROCESANDO
+  CLASIFICADA
+  ERROR
+}
+
+enum OrigenEncuesta {
+  MANUAL
+  CSV
+}
+// ───────── Seguridad ─────────
+model Usuario {
+  id           String     @id @default(cuid())
+  email        String     @unique
+  nombre       String
+  passwordHash String
+  rol          Rol        @default(OPERADOR)
+  activo       Boolean    @default(true)
+  creadoAt     DateTime   @default(now())
+  encuestas    Encuesta[]
+}
+
+// ───────── Territorio ─────────
+model Jurisdiccion {
+  id        String   @id @default(cuid())
+  nombre    String
+  geometria Json     // FeatureCollection: mapa base de la zona a relevar (KML/KMZ/GeoJSON ya normalizado)
+  centro    Json     // [lat, lng]
+  bounds    Json     // [[latMin, lngMin], [latMax, lngMax]]
+  fuente    String?  // nombre del archivo original
+  eventos   Evento[]
+  zonas     Zona[]
+}
+
+model Zona {
+  id             String         @id @default(cuid())
+  nombre         String
+  geometria      Json?          // Feature/Geometry (polígono) para asignación visual y point-in-polygon
+  jurisdiccionId String?
+  jurisdiccion   Jurisdiccion?  @relation(fields: [jurisdiccionId], references: [id], onDelete: SetNull)
+  organizaciones Organizacion[] // M:N implícita
+}
+
+model Organizacion {
+  id          String  @id @default(cuid())
+  nombre      String
+  descripcion String?
+  contacto    String?
+  zonas       Zona[]  // M:N implícita: en qué zonas tiene presencia
+}
+
+// ───────── Eventos y fases ─────────
+model Evento {
+  id             String       @id @default(cuid())
+  nombre         String
+  tipo           String
+  estado         String       // ALERTA | RELEVAMIENTO | RECUPERACION | CERRADO ...
+  jurisdiccionId String
+  jurisdiccion   Jurisdiccion @relation(fields: [jurisdiccionId], references: [id])
+  eliminado      Boolean      @default(false) // borrado lógico
+  eliminadoAt    DateTime?
+  creadoAt       DateTime     @default(now())
+  fases          Fase[]
+  capas          Capa[]
+  estadisticos   Estadistico[]
+
+  @@index([eliminado])
+}
+
+model Fase {
+  id         String      @id @default(cuid())
+  eventoId   String
+  evento     Evento      @relation(fields: [eventoId], references: [id], onDelete: Cascade)
+  nombre     String
+  orden      Int         @default(0)
+  activa     Boolean     @default(false)
+  formulario Formulario?
+  encuestas  Encuesta[]
+}
+
+// ───────── Formularios dinámicos ─────────
+model Formulario {
+  id                 String     @id @default(cuid())
+  faseId             String     @unique
+  fase               Fase       @relation(fields: [faseId], references: [id], onDelete: Cascade)
+  titulo             String
+  descripcion        String?
+  variableObjetivoId String?
+  variableObjetivo   Pregunta?  @relation("VariableObjetivo", fields: [variableObjetivoId], references: [id], onDelete: SetNull)
+  secciones          Seccion[]
+  preguntas          Pregunta[] @relation("PreguntasFormulario")
+}
+
+model Seccion {
+  id           String     @id @default(cuid())
+  formularioId String
+  formulario   Formulario @relation(fields: [formularioId], references: [id], onDelete: Cascade)
+  nombre       String
+  orden        Int        @default(0)
+  capaId       String?    // capa de resumen propia de la sección
+  capa         Capa?      @relation("CapaSeccion", fields: [capaId], references: [id], onDelete: SetNull)
+  preguntas    Pregunta[]
+}
+
+model Pregunta {
+  id              String         @id @default(cuid())
+  formularioId    String
+  formulario      Formulario     @relation("PreguntasFormulario", fields: [formularioId], references: [id], onDelete: Cascade)
+  seccionId       String?
+  seccion         Seccion?       @relation(fields: [seccionId], references: [id], onDelete: SetNull)
+  clave           String         // identificador usable en fórmulas: ^[A-Za-z_][A-Za-z0-9_]*$
+  etiqueta        String
+  ayuda           String?
+  tipo            TipoPregunta
+  opciones        Json?          // ["alto","medio","bajo"]
+  requerida       Boolean        @default(false)
+  esCausaUrgencia Boolean        @default(false)
+  peso            Float          @default(1)
+  min             Float?
+  max             Float?
+  orden           Int            @default(0)
+  capasPregunta   CapaPregunta[] // una pregunta aporta a N capas
+  resumenes       ResumenCapa[]
+  objetivoDe      Formulario[]   @relation("VariableObjetivo")
+
+  @@unique([formularioId, clave])
+}
+
+// ───────── Capas ─────────
+model Capa {
+  id               String         @id @default(cuid())
+  eventoId         String
+  evento           Evento         @relation(fields: [eventoId], references: [id], onDelete: Cascade)
+  nombre           String
+  tipo             TipoCapa       @default(ADICIONAL)
+  color            String         @default("#1F6F8B")
+  icon             String?        // emoji, nombre de ícono o URL
+  geojson          Json?          // FeatureCollection (capas geográficas)
+  aliasVariables   Json           @default("{}") // { "NOM_BARR": "Barrio" }
+  variablesActivas Json           @default("[]") // ["NOM_BARR", "POB"] → sólo estas se muestran
+  orden            Int            @default(0)
+  visible          Boolean        @default(true)
+  secciones        Seccion[]      @relation("CapaSeccion")
+  capasPregunta    CapaPregunta[]
+  resumenes        ResumenCapa[]
+
+  @@index([eventoId])
+}
+
+model CapaPregunta {
+  capaId     String
+  preguntaId String
+  agregacion Agregacion @default(SUMA)
+  capa       Capa       @relation(fields: [capaId], references: [id], onDelete: Cascade)
+  pregunta   Pregunta   @relation(fields: [preguntaId], references: [id], onDelete: Cascade)
+
+  @@id([capaId, preguntaId])
+}
+
+// Resumen incremental por capa/zona/pregunta (se actualiza al cargar cada encuesta)
+model ResumenCapa {
+  id         String   @id @default(cuid())
+  capaId     String
+  capa       Capa     @relation(fields: [capaId], references: [id], onDelete: Cascade)
+  zonaKey    String   @default("_") // id de Zona o "_" si no cae en ninguna
+  preguntaId String
+  pregunta   Pregunta @relation(fields: [preguntaId], references: [id], onDelete: Cascade)
+  categoria  String   @default("")  // opción elegida (preguntas categóricas)
+  n          Int      @default(0)
+  suma       Float    @default(0)
+
+  @@unique([capaId, zonaKey, preguntaId, categoria])
+}
+
+// ───────── Respuestas + IA ─────────
+model Encuesta {
+  id                   String         @id @default(cuid())
+  faseId               String
+  fase                 Fase           @relation(fields: [faseId], references: [id], onDelete: Cascade)
+  latitud              Float?
+  longitud             Float?
+  zonaKey              String         @default("_")
+  respuestas           Json           // { clave: valor }
+  origen               OrigenEncuesta @default(MANUAL)
+  cargadaPorId         String
+  cargadaPor           Usuario        @relation(fields: [cargadaPorId], references: [id])
+  estadoIA             EstadoIA       @default(PENDIENTE)
+  iaIntentos           Int            @default(0)
+  iaProximoIntento     DateTime       @default(now())
+  iaActualizadoAt      DateTime?
+  scoreIA              Float?
+  prioridad            String?        // ALTA | MEDIA | BAJA
+  necesidadesPrimarias Json?          // [{categoria, confianza}]
+  modeloVersion        String?
+  createdAt            DateTime       @default(now())
+
+  @@index([faseId, estadoIA, iaProximoIntento])
+}
+
+// ───────── Estadísticos dinámicos ─────────
+model Estadistico {
+  id          String  @id @default(cuid())
+  eventoId    String
+  evento      Evento  @relation(fields: [eventoId], references: [id], onDelete: Cascade)
+  nombre      String
+  descripcion String?
+  formula     String  // DSL propio, NUNCA eval(): ej. SUM(personas) o PCT(COUNT(sin_agua == true), COUNT())
+  formato     String  @default("numero") // numero | entero | porcentaje
+  unidad      String?
+  orden       Int     @default(0)
+  activo      Boolean @default(true)
+}

@@ -1,0 +1,10 @@
+const base = { width: 18, height: 18, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true };
+export const Globo = () => <svg {...base}><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18" /></svg>;
+export const Capas = () => <svg {...base}><path d="M12 3l9 5-9 5-9-5zM3 13l9 5 9-5" /></svg>;
+export const Papelera = () => <svg {...base}><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" /></svg>;
+export const Mas = () => <svg {...base}><path d="M12 5v14M5 12h14" /></svg>;
+export const Edificio = () => <svg {...base}><path d="M5 21V4h9v17M14 9h5v12M8 8h3M8 12h3M8 16h3" /></svg>;
+export const Mapa = () => <svg {...base}><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2zM9 4v14M15 6v14" /></svg>;
+export const Usuarios = () => <svg {...base}><circle cx="9" cy="8" r="3" /><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6M16 6a3 3 0 010 6M18 14c2 .6 3 2.7 3 6" /></svg>;
+export const Termometro = () => <svg {...base} width="26" height="26" stroke="#E2492F" fill="#E2492F" fillOpacity=".25"><path d="M10 14V5a2 2 0 014 0v9a4 4 0 11-4 0z" /></svg>;
+export const Circulo = () => <svg {...base}><circle cx="12" cy="12" r="5" fill="currentColor" /></svg>;
