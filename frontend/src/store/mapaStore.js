@@ -32,7 +32,7 @@ export const useMapa = create((set, get) => ({
   // Cambiar de fase: formulario + encuestas + resúmenes de esa fase
   async cargarFase(fase) {
     if (!fase) return set({ fase: null, formulario: null, encuestas: [], resumenes: {}, preguntaActiva: null, actualizadoAt: new Date() });
-    const [formulario, enc] = await Promise.all([api.get(`/formularios/fase/${fase.id}`).catch(() => null), api.get(`/encuestas/fase/${fase.id}?limit=2000`)]);
+    const [formulario, enc] = await Promise.all([api.get(`/formularios/fase/${fase.id}`).catch(() => null), api.get(`/encuestas/fase/${fase.id}?limit=2000&liviano=1`)]);
     set({ fase, formulario, encuestas: enc.items, resumenes: {}, preguntaActiva: null, actualizadoAt: new Date() });
     const general = get().capas.find((c) => c.tipo === 'GENERAL');
     if (general) await get().cargarResumen(general.id);
@@ -65,7 +65,7 @@ export const useMapa = create((set, get) => ({
   async refrescarDatos() {
     const { fase, resumenes } = get();
     if (!fase) return;
-    const [enc] = await Promise.all([api.get(`/encuestas/fase/${fase.id}?limit=2000`), ...Object.keys(resumenes).map((id) => get().cargarResumen(id))]);
+    const [enc] = await Promise.all([api.get(`/encuestas/fase/${fase.id}?limit=2000&liviano=1`), ...Object.keys(resumenes).map((id) => get().cargarResumen(id))]);
     set({ encuestas: enc.items, actualizadoAt: new Date() });
   },
 }));

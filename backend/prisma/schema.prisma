@@ -7,45 +7,52 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum Rol {
-  ADMIN
-  OPERADOR
+enum Rol{ 
+	ADMIN 
+	OPERADOR 
+	ORGANIZACION 
+}
+enum TipoPregunta{ 
+	TEXTO 
+	NUMERO 
+	BOOLEANO 
+	SELECCION_UNICA 
+	SELECCION_MULTIPLE 
+	ESCALA 
+	FECHA 
+}
+enum TipoCapa{ 
+	GENERAL 
+	SECCION 
+	BASE 
+	ADICIONAL 
+}
+enum Agregacion{ 
+	SUMA 
+	PROMEDIO 
+	CONTEO 
+}
+enum EstadoIA       { 
+	PENDIENTE 
+	PROCESANDO 
+	CLASIFICADA 
+	ERROR 
+}
+enum OrigenEncuesta { 
+	MANUAL 
+	CSV 
+}
+enum EstadoEncuesta { 
+	VIGENTE 
+	NO_RELEVADO 
+} // NO_RELEVADO = versión anterior o encuesta anulada (queda para seguimiento histórico)
+enum EstadoTarea    { 
+	PENDIENTE 
+	EN_CURSO 
+	COMPLETADA 
+	CANCELADA 
 }
 
-enum TipoPregunta {
-  TEXTO
-  NUMERO
-  BOOLEANO
-  SELECCION_UNICA
-  SELECCION_MULTIPLE
-  ESCALA
-  FECHA
-}
-
-enum TipoCapa {
-  GENERAL
-  SECCION
-  BASE
-  ADICIONAL
-}
-
-enum Agregacion {
-  SUMA
-  PROMEDIO
-  CONTEO
-}
-
-enum EstadoIA {
-  PENDIENTE
-  PROCESANDO
-  CLASIFICADA
-  ERROR
-}
-
-enum OrigenEncuesta {
-  MANUAL
-  CSV
-}
 // ───────── Seguridad ─────────
 model Usuario {
   id           String     @id @default(cuid())
@@ -55,6 +62,8 @@ model Usuario {
   rol          Rol        @default(OPERADOR)
   activo       Boolean    @default(true)
   creadoAt     DateTime   @default(now())
+  organizacionId String?  // rol ORGANIZACION: a qué organización pertenece
+  organizacion Organizacion? @relation(fields: [organizacionId], references: [id], onDelete: SetNull)
   encuestas    Encuesta[]
 }
 
@@ -77,6 +86,7 @@ model Zona {
   jurisdiccionId String?
   jurisdiccion   Jurisdiccion?  @relation(fields: [jurisdiccionId], references: [id], onDelete: SetNull)
   organizaciones Organizacion[] // M:N implícita
+  tareas         Tarea[]        // M:N implícita
 }
 
 model Organizacion {
@@ -84,7 +94,9 @@ model Organizacion {
   nombre      String
   descripcion String?
   contacto    String?
-  zonas       Zona[]  // M:N implícita: en qué zonas tiene presencia
+  zonas       Zona[]  // M:N implícita: en qué zonas trabaja la organización
+  usuarios    Usuario[]
+  tareas      Tarea[]
 }
 
 // ───────── Eventos y fases ─────────
@@ -114,6 +126,7 @@ model Fase {
   activa     Boolean     @default(false)
   formulario Formulario?
   encuestas  Encuesta[]
+  tareas     Tarea[]
 }
 
 // ───────── Formularios dinámicos ─────────
@@ -123,6 +136,10 @@ model Formulario {
   fase               Fase       @relation(fields: [faseId], references: [id], onDelete: Cascade)
   titulo             String
   descripcion        String?
+  // Apartado opcional de datos personales: qué se pide, si es obligatorio y para qué se usa
+  pideDatosPersonales     Boolean @default(false)
+  datosPersonalesCampos   Json?   // [{ clave: "nombre", requerido: true }]
+  datosPersonalesFinalidad String?
   variableObjetivoId String?
   variableObjetivo   Pregunta?  @relation("VariableObjetivo", fields: [variableObjetivoId], references: [id], onDelete: SetNull)
   secciones          Seccion[]
@@ -218,7 +235,10 @@ model Encuesta {
   latitud              Float?
   longitud             Float?
   zonaKey              String         @default("_")
-  respuestas           Json           // { clave: valor }
+  zonaOrigen           String         @default("SIN_ZONA") // COORDENADAS | MANUAL | SIN_ZONA
+  respuestas           Json           // { clave: valor }  (sólo variables del relevamiento: es lo único que ve la IA)
+  datosPersonales      Json?          // se guardan APARTE de las respuestas
+  consentimientoDatos  Boolean        @default(false)
   origen               OrigenEncuesta @default(MANUAL)
   cargadaPorId         String
   cargadaPor           Usuario        @relation(fields: [cargadaPorId], references: [id])
@@ -231,8 +251,39 @@ model Encuesta {
   necesidadesPrimarias Json?          // [{categoria, confianza}]
   modeloVersion        String?
   createdAt            DateTime       @default(now())
+  // Versionado: editar crea una versión nueva; la anterior pasa a NO_RELEVADO
+  estado               EstadoEncuesta @default(VIGENTE)
+  version              Int            @default(1)
+  raizId               String?        // id de la primera versión de la cadena (null en la primera)
+  modificadaPorId      String?
+  modificadaAt         DateTime?
+  motivoCambio         String?
+  tareaId              String?
+  tarea                Tarea?         @relation(fields: [tareaId], references: [id], onDelete: SetNull)
 
   @@index([faseId, estadoIA, iaProximoIntento])
+  @@index([faseId, estado])
+  @@index([raizId])
+}
+
+// Tarea de relevamiento: la carga una Organización para sus zonas
+model Tarea {
+  id             String       @id @default(cuid())
+  faseId         String
+  fase           Fase         @relation(fields: [faseId], references: [id], onDelete: Cascade)
+  organizacionId String
+  organizacion   Organizacion @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+  zonas          Zona[]       // una o más zonas de la organización
+  titulo         String
+  descripcion    String?
+  estado         EstadoTarea  @default(PENDIENTE)
+  metaEncuestas  Int?
+  venceAt        DateTime?
+  creadaPorId    String
+  createdAt      DateTime     @default(now())
+  encuestas      Encuesta[]
+
+  @@index([organizacionId, faseId])
 }
 
 // ───────── Estadísticos dinámicos ─────────

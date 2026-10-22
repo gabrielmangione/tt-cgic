@@ -11,6 +11,10 @@ const conZonas = { zonas: { select: { id: true, nombre: true } } };
 const ids = (a) => a.map((id) => ({ id }));
 
 router.get('/', ah(async (_req, res) => res.json(await prisma.organizacion.findMany({ include: conZonas, orderBy: { nombre: 'asc' } }))));
+router.get('/mia', ah(async (req, res) => {
+  const u = await prisma.usuario.findUnique({ where: { id: req.user.id }, select: { organizacionId: true } });
+  res.json(u?.organizacionId ? await prisma.organizacion.findUnique({ where: { id: u.organizacionId }, include: conZonas }) : null);
+}));
 router.get('/:id', ah(async (req, res) => res.json(await prisma.organizacion.findUniqueOrThrow({ where: { id: req.params.id }, include: conZonas }))));
 
 router.post('/', soloAdmin, ah(async (req, res) => {

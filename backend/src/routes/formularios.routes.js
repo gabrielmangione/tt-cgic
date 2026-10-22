@@ -2,6 +2,8 @@ const router = require('express').Router();
 const prisma = require('../db');
 const { ah, z, httpError } = require('../utils');
 const { soloAdmin } = require('../middleware/auth');
+const { Prisma } = require('@prisma/client');
+const personales = require('../services/personales');
 
 const CLAVE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const RESERVADAS = new Set(['true', 'false', 'lat', 'lng', 'score_ia']);
@@ -22,7 +24,20 @@ const seccionZ = z.object({
   id: z.string().optional(), nombre: z.string().min(1).max(100), capaId: z.string().optional().nullable(),
   preguntas: z.array(preguntaZ).default([]),
 });
+// Apartado opcional de datos personales: qué datos se piden y para qué se usan
+const datosPersonalesZ = z.object({
+  activo: z.boolean(),
+  finalidad: z.string().max(500).optional().nullable(),
+  campos: z.array(z.object({ clave: z.enum(personales.CLAVES), requerido: z.boolean().default(false) })).default([]),
+}).superRefine((d, ctx) => {
+  if (!d.activo) return;
+  if (!d.campos.length) ctx.addIssue({ code: 'custom', path: ['campos'], message: 'Elegí qué datos personales se solicitan' });
+  if (!d.finalidad?.trim()) ctx.addIssue({ code: 'custom', path: ['finalidad'], message: 'Indicá para qué se tratarán estos datos' });
+  if (new Set(d.campos.map((c) => c.clave)).size !== d.campos.length) ctx.addIssue({ code: 'custom', path: ['campos'], message: 'Hay datos repetidos' });
+});
+
 const formularioZ = z.object({
+  datosPersonales: datosPersonalesZ.optional(),
   titulo: z.string().min(2), descripcion: z.string().optional().nullable(),
   variableObjetivoClave: z.string().optional().nullable(), // se resuelve a variableObjetivoId tras crear las preguntas
   secciones: z.array(seccionZ).min(1),
@@ -38,10 +53,16 @@ async function guardar(tx, faseId, datos) {
   if (new Set(claves).size !== claves.length) throw httpError(400, 'Hay claves de pregunta repetidas');
   if (datos.variableObjetivoClave && !claves.includes(datos.variableObjetivoClave)) throw httpError(400, 'variableObjetivoClave no existe en el formulario');
 
+  const dp = datos.datosPersonales;
+  const dpData = dp ? {
+    pideDatosPersonales: dp.activo,
+    datosPersonalesCampos: dp.activo ? dp.campos : Prisma.DbNull,
+    datosPersonalesFinalidad: dp.activo ? dp.finalidad.trim() : null,
+  } : {}; // si no viene, se conserva lo configurado
   const form = await tx.formulario.upsert({
     where: { faseId },
-    create: { faseId, titulo: datos.titulo, descripcion: datos.descripcion },
-    update: { titulo: datos.titulo, descripcion: datos.descripcion },
+    create: { faseId, titulo: datos.titulo, descripcion: datos.descripcion, ...dpData },
+    update: { titulo: datos.titulo, descripcion: datos.descripcion, ...dpData },
   });
 
   const idsSecc = [], idsPreg = [];

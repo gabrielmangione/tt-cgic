@@ -4,17 +4,20 @@ const prisma = require('../db');
 const { ah, z, httpError } = require('../utils');
 
 // Se monta en app.js detrás de `soloAdmin`: ningún OPERADOR llega hasta acá.
-const campos = { id: true, email: true, nombre: true, rol: true, activo: true, creadoAt: true };
+const campos = { id: true, email: true, nombre: true, rol: true, activo: true, creadoAt: true, organizacionId: true, organizacion: { select: { nombre: true } } };
 
 router.get('/', ah(async (_req, res) => res.json(await prisma.usuario.findMany({ select: campos, orderBy: { nombre: 'asc' } }))));
 
 router.put('/:id', ah(async (req, res) => {
   const d = z.object({
-    nombre: z.string().min(2).optional(), rol: z.enum(['ADMIN', 'OPERADOR']).optional(),
-    activo: z.boolean().optional(), password: z.string().min(10).optional(),
+    nombre: z.string().min(2).optional(), rol: z.enum(['ADMIN', 'OPERADOR', 'ORGANIZACION']).optional(),
+    activo: z.boolean().optional(), password: z.string().min(10).optional(), organizacionId: z.string().nullable().optional(),
   }).parse(req.body);
   // Un admin no puede quitarse a sí mismo el acceso (evita quedarse sin administradores)
   if (req.params.id === req.user.id && (d.rol === 'OPERADOR' || d.activo === false)) throw httpError(400, 'No podés quitarte tu propio acceso de administrador');
+  const actual = await prisma.usuario.findUniqueOrThrow({ where: { id: req.params.id }, select: { rol: true, organizacionId: true } });
+  const rolFinal = d.rol ?? actual.rol, orgFinal = d.organizacionId !== undefined ? d.organizacionId : actual.organizacionId;
+  if (rolFinal === 'ORGANIZACION' && !orgFinal) throw httpError(400, 'El rol Organización requiere una organización');
   const { password, ...resto } = d;
   res.json(await prisma.usuario.update({
     where: { id: req.params.id }, select: campos,

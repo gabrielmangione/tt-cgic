@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import { useMapa } from '../store/mapaStore';
+import { DATOS_PERSONALES } from '../lib/personales';
 
 const TIPOS = [['NUMERO', 'Número'], ['BOOLEANO', 'Sí / No'], ['SELECCION_UNICA', 'Opción única'], ['SELECCION_MULTIPLE', 'Opción múltiple'], ['ESCALA', 'Escala'], ['TEXTO', 'Texto'], ['FECHA', 'Fecha']];
 const slug = (t) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').replace(/^(\d)/, '_$1').slice(0, 40);
@@ -9,7 +10,7 @@ const uid = () => `u${++n}`;
 const preguntaVacia = () => ({ uid: uid(), etiqueta: '', clave: '', tipo: 'NUMERO', opcionesTxt: '', requerida: false, esCausaUrgencia: false, peso: 1, capasPregunta: [] });
 
 function aEstado(f) {
-  if (!f) return { titulo: 'Relevamiento', secciones: [{ uid: uid(), nombre: 'General', capaId: null, preguntas: [preguntaVacia()] }], objetivo: null };
+  if (!f) return { titulo: 'Relevamiento', secciones: [{ uid: uid(), nombre: 'General', capaId: null, preguntas: [preguntaVacia()] }], objetivo: null, dp: { activo: false, finalidad: '', campos: [] } };
   let objetivo = null;
   const secciones = f.secciones.map((s) => ({
     uid: uid(), id: s.id, nombre: s.nombre, capaId: s.capaId,
@@ -18,7 +19,7 @@ function aEstado(f) {
       return { uid: u, id: p.id, etiqueta: p.etiqueta, clave: p.clave, tipo: p.tipo, opcionesTxt: (p.opciones ?? []).join(', '), requerida: p.requerida, esCausaUrgencia: p.esCausaUrgencia, peso: p.peso, capasPregunta: p.capasPregunta.map(({ capaId, agregacion }) => ({ capaId, agregacion })) };
     }),
   }));
-  return { titulo: f.titulo, descripcion: f.descripcion, secciones, objetivo };
+  return { titulo: f.titulo, descripcion: f.descripcion, secciones, objetivo, dp: { activo: !!f.pideDatosPersonales, finalidad: f.datosPersonalesFinalidad ?? '', campos: f.datosPersonalesCampos ?? [] } };
 }
 
 export default function FormularioEditor() {
@@ -52,7 +53,8 @@ export default function FormularioEditor() {
         });
         secciones.push({ ...(s.id && { id: s.id }), nombre: s.nombre, capaId, preguntas });
       }
-      await api.put(`/formularios/fase/${fase.id}`, { titulo: est.titulo, descripcion: est.descripcion ?? null, variableObjetivoClave: claves[est.objetivo] ?? null, secciones });
+      await api.put(`/formularios/fase/${fase.id}`, { titulo: est.titulo, descripcion: est.descripcion ?? null, variableObjetivoClave: claves[est.objetivo] ?? null, secciones,
+        datosPersonales: { activo: est.dp.activo, finalidad: est.dp.finalidad || null, campos: est.dp.campos } });
       await seleccionarFase(fase.id);
       setOk(true);
     } catch (e) { setError(e.detalle?.detalle?.map?.((i) => `${i.path.join('.')}: ${i.message}`).join(' · ') || e.message); }
@@ -61,6 +63,7 @@ export default function FormularioEditor() {
   return (
     <>
       <h2>Formulario de «{fase.nombre}»</h2>
+      <p className="vacio">La <strong>variable objetivo</strong> define el color de las zonas en el mapa: se pinta sola cuando se cargan encuestas. Booleana: % de «sí». Escala: promedio. Opción: el orden de las opciones va de menos a más grave.</p>
       <label>Título<input value={est.titulo} onChange={(e) => setEst({ ...est, titulo: e.target.value })} /></label>
       {est.secciones.map((s, si) => (
         <fieldset key={s.uid}>
@@ -84,6 +87,26 @@ export default function FormularioEditor() {
           <button type="button" onClick={() => setSec(si, { preguntas: [...s.preguntas, preguntaVacia()] })}>Agregar pregunta</button>
         </fieldset>
       ))}
+      <fieldset>
+        <legend>Datos personales (opcional)</legend>
+        <label className="check"><input type="checkbox" checked={est.dp.activo} onChange={(e) => setEst({ ...est, dp: { ...est.dp, activo: e.target.checked } })} />Solicitar datos personales en esta encuesta</label>
+        {est.dp.activo && (
+          <>
+            {Object.entries(DATOS_PERSONALES).map(([clave, { etiqueta }]) => {
+              const c = est.dp.campos.find((x) => x.clave === clave);
+              const poner = (cambio) => setEst({ ...est, dp: { ...est.dp, campos: cambio === null ? est.dp.campos.filter((x) => x.clave !== clave) : c ? est.dp.campos.map((x) => (x.clave === clave ? { ...x, ...cambio } : x)) : [...est.dp.campos, { clave, requerido: false, ...cambio }] } });
+              return (
+                <div className="marcas" key={clave}>
+                  <label className="check"><input type="checkbox" checked={!!c} onChange={(e) => poner(e.target.checked ? {} : null)} />{etiqueta}</label>
+                  {c && <label className="check"><input type="checkbox" checked={c.requerido} onChange={(e) => poner({ requerido: e.target.checked })} />Obligatorio</label>}
+                </div>
+              );
+            })}
+            <label>¿Para qué se tratarán estos datos? *<textarea rows={2} maxLength={500} value={est.dp.finalidad} onChange={(e) => setEst({ ...est, dp: { ...est.dp, finalidad: e.target.value } })} placeholder="Ej. contactar al hogar para la entrega de asistencia" /></label>
+            <p className="nota">Se guardan aparte de las respuestas, no se envían a la IA ni entran en las fórmulas, y quien carga debe registrar el consentimiento.</p>
+          </>
+        )}
+      </fieldset>
       <div className="acciones">
         <button type="button" onClick={() => setEst((e) => ({ ...e, secciones: [...e.secciones, { uid: uid(), nombre: 'Nueva sección', capaId: null, preguntas: [preguntaVacia()] }] }))}>Agregar sección</button>
         <button className="primario" onClick={guardar}>Guardar formulario</button>

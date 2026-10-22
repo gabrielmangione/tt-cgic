@@ -28,7 +28,7 @@ router.post('/validar', soloAdmin, ah(async (req, res) => {
   const { eventoId, formula } = z.object({ eventoId: z.string(), formula: z.string().max(500) }).parse(req.body);
   try {
     const c = compilar(formula, await variablesDelEvento(eventoId));
-    const filas = (await prisma.encuesta.findMany({ where: { fase: { eventoId } }, take: 5000, select: { respuestas: true, scoreIA: true } })).map(fila);
+    const filas = (await prisma.encuesta.findMany({ where: { estado: 'VIGENTE', fase: { eventoId } }, take: 5000, select: { respuestas: true, scoreIA: true } })).map(fila);
     res.json({ valida: true, variables: c.variables, vistaPrevia: evaluar(c, filas) });
   } catch (e) {
     if (e instanceof FormulaError) return res.json({ valida: false, error: e.message });
@@ -52,7 +52,7 @@ router.delete('/:id', soloAdmin, ah(async (req, res) => { await prisma.estadisti
 // Cálculo en tiempo real (footer): ?eventoId=&faseId=&zonaKey=
 router.get('/calcular', ah(async (req, res) => {
   const eventoId = z.string().parse(req.query.eventoId);
-  const where = { fase: { eventoId, ...(req.query.faseId && { id: String(req.query.faseId) }) }, ...(req.query.zonaKey && { zonaKey: String(req.query.zonaKey) }) };
+  const where = { estado: 'VIGENTE', fase: { eventoId, ...(req.query.faseId && { id: String(req.query.faseId) }) }, ...(req.query.zonaKey && { zonaKey: String(req.query.zonaKey) }) };
   const [defs, encuestas] = await Promise.all([
     prisma.estadistico.findMany({ where: { eventoId, activo: true }, orderBy: { orden: 'asc' } }),
     prisma.encuesta.findMany({ where, take: 50000, select: { respuestas: true, scoreIA: true } }),

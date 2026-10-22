@@ -21,8 +21,11 @@ const iconoCapa = (capa) => L.divIcon({
 });
 
 export default function MapView() {
-  const { jurisdiccion, zonas, capas, visibles, encuestas, mostrarEncuestas, verLimites, verOrganizaciones, preguntaActiva, resumenes, seleccionar } = useMapa();
-  const indices = useMemo(() => indicePorZona({ zonas, encuestas, resumenes, preguntaActiva }), [zonas, encuestas, resumenes, preguntaActiva]);
+  const { jurisdiccion, zonas, capas, visibles, encuestas, mostrarEncuestas, verLimites, verOrganizaciones, preguntaActiva, resumenes, seleccionar, formulario } = useMapa();
+  // Variable objetivo del formulario: define el color de las zonas (Panorama general)
+  const objetivo = useMemo(() => formulario?.secciones.flatMap((s) => s.preguntas).find((p) => p.id === formulario.variableObjetivoId) ?? null, [formulario]);
+  const generalId = capas.find((c) => c.tipo === 'GENERAL')?.id;
+  const indices = useMemo(() => indicePorZona({ zonas, encuestas, resumenes, preguntaActiva, objetivo, generalId }), [zonas, encuestas, resumenes, preguntaActiva, objetivo, generalId]);
   const critica = useMemo(() => {
     const top = Object.entries(indices).sort((a, b) => b[1] - a[1])[0];
     return top ? { zona: zonas.find((z) => z.id === top[0]), valor: top[1] } : null;
@@ -77,10 +80,13 @@ export default function MapView() {
         <div className="critica" role="status">
           <small>Zona más crítica</small>
           <strong>{critica.zona.nombre}</strong>
-          <span className="critica-sub">{preguntaActiva ? 'Índice de la necesidad seleccionada' : 'Índice de prioridad territorial'}</span>
+          <span className="critica-sub">{preguntaActiva ? 'Índice de la necesidad seleccionada' : objetivo ? `Variable objetivo: ${objetivo.etiqueta}` : 'Índice de prioridad territorial'}</span>
           <div className="critica-num"><b>{critica.valor}</b><span>/100</span></div>
         </div>
       )}
+      <div className="leyenda" aria-label="Escala de colores">
+        <span>Menor</span><i /><span>Mayor</span>
+      </div>
       <DialogoFlotante />
     </div>
   );

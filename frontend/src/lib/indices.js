@@ -12,9 +12,40 @@ export function valorZona(resumenZona, preguntaId) {
   return p.n ? p.suma : null;
 }
 
-/** Índice 0–100 por zona. Panorama general: promedio del score de IA. Pregunta activa: valor relativo al máximo. */
-export function indicePorZona({ zonas, encuestas, resumenes, preguntaActiva }) {
+// Valor de la VARIABLE OBJETIVO por zona. BOOLEANO: % de hogares con «sí». ESCALA: promedio sobre el rango.
+// SELECCIÓN: las opciones se ordenan de menos a más grave; se promedia su posición. NUMERO: promedio (se normaliza por el máximo).
+export function valorObjetivo(p, resumenZona) {
+  const r = resumenZona?.[p.id];
+  if (!r) return null;
+  switch (p.tipo) {
+    case 'BOOLEANO': return r.n ? (100 * r.suma) / r.n : null;
+    case 'ESCALA': { const min = p.min ?? 0, max = p.max ?? 10; return r.n ? Math.min(100, Math.max(0, (100 * (r.suma / r.n - min)) / (max - min || 1))) : null; }
+    case 'SELECCION_UNICA': case 'SELECCION_MULTIPLE': {
+      const ops = p.opciones ?? []; if (ops.length < 2) return null;
+      let tot = 0, pes = 0;
+      for (const [c, n] of Object.entries(r.categorias)) { const i = ops.indexOf(c); if (i >= 0) { tot += n; pes += (n * i) / (ops.length - 1); } }
+      return tot ? (100 * pes) / tot : null;
+    }
+    case 'NUMERO': return r.n ? r.suma / r.n : null;
+    default: return null;
+  }
+}
+
+/**
+ * Índice 0–100 por zona que pinta el mapa.
+ *  · Pregunta elegida en el panel: su valor relativo al máximo.
+ *  · Panorama general: la VARIABLE OBJETIVO del formulario; si no hay, el promedio del puntaje de IA.
+ */
+export function indicePorZona({ zonas, encuestas, resumenes, preguntaActiva, objetivo, generalId }) {
   const out = {};
+  if (!preguntaActiva && objetivo) {
+    const res = resumenes[generalId] ?? {};
+    const vals = {};
+    for (const z of zonas) { const v = valorObjetivo(objetivo, res[z.id]); if (v != null) vals[z.id] = v; }
+    const max = Math.max(0, ...Object.values(vals));
+    for (const [k, v] of Object.entries(vals)) out[k] = Math.round(objetivo.tipo === 'NUMERO' ? (max > 0 ? (100 * v) / max : 0) : v);
+    return out;
+  }
   if (!preguntaActiva) {
     const acc = {};
     for (const e of encuestas) if (e.scoreIA != null && e.zonaKey !== '_') (acc[e.zonaKey] ??= []).push(e.scoreIA);
@@ -27,6 +58,17 @@ export function indicePorZona({ zonas, encuestas, resumenes, preguntaActiva }) {
   const max = Math.max(0, ...Object.values(vals));
   for (const [k, v] of Object.entries(vals)) out[k] = max > 0 ? Math.round((100 * v) / max) : 0;
   return out;
+}
+
+// Point-in-polygon en el cliente: vista previa de la zona detectada al cargar una encuesta (el backend decide la definitiva)
+const enAnillo = (x, y, r) => { let d = false; for (let i = 0, j = r.length - 1; i < r.length; j = i++) { const [xi, yi] = r[i], [xj, yj] = r[j]; if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) d = !d; } return d; };
+const enPoligono = (x, y, rings) => enAnillo(x, y, rings[0]) && !rings.slice(1).some((h) => enAnillo(x, y, h));
+export function zonaPorPunto(zonas, lat, lng) {
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  return zonas.find((z) => {
+    const g = z.geometria?.type === 'Feature' ? z.geometria.geometry : z.geometria;
+    return g?.type === 'Polygon' ? enPoligono(lng, lat, g.coordinates) : g?.type === 'MultiPolygon' ? g.coordinates.some((q) => enPoligono(lng, lat, q)) : false;
+  }) ?? null;
 }
 
 // ¿Este hogar presenta la problemática de la pregunta?

@@ -20,7 +20,7 @@ function reclamarLote() {
     UPDATE "Encuesta" SET "estadoIA"='PROCESANDO', "iaIntentos"="iaIntentos"+1, "iaActualizadoAt"=now()
     WHERE id IN (
       SELECT id FROM "Encuesta"
-      WHERE "estadoIA"='PENDIENTE' AND "iaProximoIntento" <= now()
+      WHERE "estadoIA"='PENDIENTE' AND "estado"='VIGENTE' AND "iaProximoIntento" <= now()
       ORDER BY "createdAt" LIMIT ${LOTE} FOR UPDATE SKIP LOCKED)
     RETURNING id, "faseId", respuestas, latitud, longitud, "iaIntentos"`;
 }

@@ -26,6 +26,7 @@ app.use('/api/zonas', require('./routes/zonas.routes'));
 app.use('/api/capas', require('./routes/capas.routes'));
 app.use('/api/formularios', require('./routes/formularios.routes'));
 app.use('/api/encuestas', require('./routes/encuestas.routes'));
+app.use('/api/tareas', require('./routes/tareas.routes'));
 app.use('/api/estadisticos', require('./routes/estadisticos.routes'));
 app.use(errorHandler);
 

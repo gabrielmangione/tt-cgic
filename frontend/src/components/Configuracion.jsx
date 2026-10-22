@@ -9,25 +9,27 @@ const msgError = (e) => e.detalle?.detalle?.map?.((i) => `${i.path.join('.')}: $
 
 function Usuarios({ yo }) {
   const [lista, setLista] = useState([]);
-  const [nuevo, setNuevo] = useState({ nombre: '', email: '', password: '', rol: 'OPERADOR' });
+  const [nuevo, setNuevo] = useState({ nombre: '', email: '', password: '', rol: 'OPERADOR', organizacionId: '' });
+  const [orgs, setOrgs] = useState([]);
   const [error, setError] = useState(null);
   const cargar = () => api.get('/usuarios').then(setLista);
-  useEffect(() => { cargar(); }, []);
+  useEffect(() => { cargar(); api.get('/organizaciones').then(setOrgs); }, []);
   const cambiar = async (id, d) => { setError(null); try { await api.put(`/usuarios/${id}`, d); cargar(); } catch (e) { setError(msgError(e)); } };
   async function crear(e) {
     e.preventDefault(); setError(null);
-    try { await api.post('/auth/usuarios', nuevo); setNuevo({ nombre: '', email: '', password: '', rol: 'OPERADOR' }); cargar(); } catch (x) { setError(msgError(x)); }
+    try { await api.post('/auth/usuarios', { ...nuevo, organizacionId: nuevo.organizacionId || null }); setNuevo({ nombre: '', email: '', password: '', rol: 'OPERADOR', organizacionId: '' }); cargar(); } catch (x) { setError(msgError(x)); }
   }
   return (
     <>
       <h2>Usuarios</h2>
       {error && <p role="alert" className="error">{error}</p>}
       <table className="tabla-vars">
-        <thead><tr><th>Nombre</th><th>Correo</th><th>Rol</th><th>Activo</th></tr></thead>
+        <thead><tr><th>Nombre</th><th>Correo</th><th>Rol</th><th>Organización</th><th>Activo</th></tr></thead>
         <tbody>{lista.map((u) => (
           <tr key={u.id}>
             <td>{u.nombre}</td><td>{u.email}</td>
-            <td><select value={u.rol} onChange={(e) => cambiar(u.id, { rol: e.target.value })} disabled={u.id === yo?.id}><option value="ADMIN">Administrador</option><option value="OPERADOR">Voluntario / Operador</option></select></td>
+            <td><select value={u.rol} onChange={(e) => cambiar(u.id, { rol: e.target.value })} disabled={u.id === yo?.id}><option value="ADMIN">Administrador</option><option value="OPERADOR">Voluntario / Operador</option><option value="ORGANIZACION">Organización</option></select></td>
+            <td><select value={u.organizacionId ?? ''} onChange={(e) => cambiar(u.id, { organizacionId: e.target.value || null })} aria-label={`Organización de ${u.nombre}`}><option value="">—</option>{orgs.map((o) => <option key={o.id} value={o.id}>{o.nombre}</option>)}</select></td>
             <td><input type="checkbox" checked={u.activo} disabled={u.id === yo?.id} onChange={(e) => cambiar(u.id, { activo: e.target.checked })} aria-label={`Activo: ${u.nombre}`} /></td>
           </tr>
         ))}</tbody>
@@ -37,7 +39,8 @@ function Usuarios({ yo }) {
         <label>Nombre<input required value={nuevo.nombre} onChange={(e) => setNuevo({ ...nuevo, nombre: e.target.value })} /></label>
         <label>Correo<input required type="email" value={nuevo.email} onChange={(e) => setNuevo({ ...nuevo, email: e.target.value })} /></label>
         <label>Contraseña (mín. 10 caracteres)<input required type="password" minLength={10} autoComplete="new-password" value={nuevo.password} onChange={(e) => setNuevo({ ...nuevo, password: e.target.value })} /></label>
-        <label>Rol<select value={nuevo.rol} onChange={(e) => setNuevo({ ...nuevo, rol: e.target.value })}><option value="OPERADOR">Voluntario / Operador</option><option value="ADMIN">Administrador</option></select></label>
+        <label>Rol<select value={nuevo.rol} onChange={(e) => setNuevo({ ...nuevo, rol: e.target.value })}><option value="OPERADOR">Voluntario / Operador</option><option value="ORGANIZACION">Organización</option><option value="ADMIN">Administrador</option></select></label>
+        <label>Organización {nuevo.rol === 'ORGANIZACION' && '*'}<select required={nuevo.rol === 'ORGANIZACION'} value={nuevo.organizacionId} onChange={(e) => setNuevo({ ...nuevo, organizacionId: e.target.value })}><option value="">—</option>{orgs.map((o) => <option key={o.id} value={o.id}>{o.nombre}</option>)}</select></label>
         <button className="primario">Crear usuario</button>
       </form>
     </>

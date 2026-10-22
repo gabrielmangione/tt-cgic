@@ -16,6 +16,7 @@ export default function Sidebar({ admin = false, onCargarCapa }) {
   const geograficas = capas.filter((c) => c.geojson);
   const preguntas = formulario?.secciones.flatMap((sec) => sec.preguntas.map((p) => ({ p, sec }))) ?? [];
   const activa = preguntas.find(({ p }) => p.id === preguntaActiva?.preguntaId);
+  const objetivoP = preguntas.find(({ p }) => p.id === formulario?.variableObjetivoId)?.p;
   const destinos = (p, sec) => [...new Set([sec.capaId, ...p.capasPregunta.map((c) => c.capaId), general?.id].filter(Boolean))];
 
   return (
@@ -23,6 +24,7 @@ export default function Sidebar({ admin = false, onCargarCapa }) {
       <div className="necesidad">
         <small>Necesidad seleccionada</small>
         <strong>{activa ? activa.p.etiqueta : 'Panorama general'}</strong>
+        {!activa && <span className="necesidad-nota">{objetivoP ? `Mapa pintado por la variable objetivo: ${objetivoP.etiqueta}` : 'Sin variable objetivo: se usa el puntaje de la IA'}</span>}
       </div>
 
       <h2 className="sb-titulo">Mapa de necesidades</h2>
@@ -37,7 +39,7 @@ export default function Sidebar({ admin = false, onCargarCapa }) {
             return (
               <div key={p.id}>
                 <button className={`item${on ? ' on' : ''}`} onClick={() => activarPregunta(p.id, dest[0])}>
-                  <Capas />{p.etiqueta}{p.esCausaUrgencia && <abbr className="urgencia" title="Causa directa de urgencia">!</abbr>}
+                  <Capas />{p.etiqueta}{formulario.variableObjetivoId === p.id && <em className="obj">objetivo</em>}{p.esCausaUrgencia && <abbr className="urgencia" title="Causa directa de urgencia">!</abbr>}
                 </button>
                 {on && dest.length > 1 && (
                   <div className="chips" aria-label="Capa de origen">

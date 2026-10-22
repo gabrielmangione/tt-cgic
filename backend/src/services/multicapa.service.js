@@ -4,13 +4,27 @@
  * signo = +1 al cargar, -1 al revertir (borrado de encuesta).
  */
 const geo = require('./geo.service');
+const { httpError } = require('../utils');
 
 const valorNumerico = (p, v) => (p.tipo === 'BOOLEANO' ? (v ? 1 : 0) : p.tipo === 'NUMERO' || p.tipo === 'ESCALA' ? Number(v) || 0 : 0);
 
-exports.zonaParaPunto = async (tx, jurisdiccionId, lat, lng) => {
-  if (lat == null || lng == null) return '_';
-  const zonas = await tx.zona.findMany({ where: { jurisdiccionId, geometria: { not: null } }, select: { id: true, geometria: true } });
-  return zonas.find((z) => geo.puntoEnGeometria(lat, lng, z.geometria))?.id ?? '_';
+exports.cargarZonas = (db, jurisdiccionId) =>
+  db.zona.findMany({ where: { jurisdiccionId }, select: { id: true, nombre: true, geometria: true } });
+
+/**
+ * Zona de una encuesta: 1) por coordenadas (point-in-polygon) 2) respaldo: zona indicada a mano 3) sin zona.
+ * `zonas` viene precargada para no consultar la base por cada fila (importación CSV).
+ */
+exports.resolverZona = (zonas, { lat, lng, zonaId }) => {
+  if (lat != null && lng != null) {
+    const z = zonas.find((x) => x.geometria && geo.puntoEnGeometria(lat, lng, x.geometria));
+    if (z) return { zonaKey: z.id, zonaOrigen: 'COORDENADAS' };
+  }
+  if (zonaId) {
+    if (!zonas.some((x) => x.id === zonaId)) throw httpError(400, 'La zona indicada no pertenece al área del evento');
+    return { zonaKey: zonaId, zonaOrigen: 'MANUAL' };
+  }
+  return { zonaKey: '_', zonaOrigen: 'SIN_ZONA' };
 };
 
 exports.aplicar = async (tx, { eventoId, zonaKey, respuestas }, preguntas, signo = 1) => {
