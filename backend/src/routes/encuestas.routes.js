@@ -79,7 +79,7 @@ async function crearAlcance(user) {
     ? new Set((await prisma.zona.findMany({ where: { organizaciones: { some: { id: orgId } } }, select: { id: true } })).map((x) => x.id))
     : new Set();
   const tareas = new Map();
-  return async (zonaKey, tareaId) => {
+  const verificar = async (zonaKey, tareaId) => {
     if (user.rol === 'ORGANIZACION') {
       if (!orgId) throw httpError(403, 'Tu usuario no está asociado a una organización');
       if (zonaKey === '_' || !zonasOrg.has(zonaKey)) throw httpError(403, 'Tu organización no trabaja en esa zona');
@@ -88,16 +88,35 @@ async function crearAlcance(user) {
       if (!tareas.has(tareaId)) tareas.set(tareaId, await prisma.tarea.findUnique({ where: { id: tareaId }, include: { zonas: { select: { id: true } } } }));
       const t = tareas.get(tareaId);
       if (!t || (user.rol === 'ADMIN' ? false : t.organizacionId !== orgId)) throw httpError(403, 'Tarea no disponible');
-      if (t.estado === 'CANCELADA' || t.estado === 'COMPLETADA') throw httpError(409, 'La tarea ya está cerrada');
+      if (user.rol === 'OPERADOR' && !(await prisma.inscripcion.findUnique({ where: { tareaId_usuarioId: { tareaId, usuarioId: user.id } } }))) throw httpError(403, 'Primero anotate a la actividad');
+      if (t.estado === 'CANCELADA' || t.estado === 'COMPLETADA') throw httpError(409, 'La actividad ya está cerrada');
       if (t.zonas.length && !t.zonas.some((x) => x.id === zonaKey)) throw httpError(400, 'La encuesta queda fuera de las zonas de la tarea');
     }
   };
+  // Zona por defecto cuando no hay coordenadas ni zona elegida: la de la actividad (si tiene una sola) o la única de la organización
+  verificar.porDefecto = async (tareaId) => {
+    if (tareaId) {
+      if (!tareas.has(tareaId)) tareas.set(tareaId, await prisma.tarea.findUnique({ where: { id: tareaId }, include: { zonas: { select: { id: true } } } }));
+      const t = tareas.get(tareaId);
+      if (t?.zonas.length === 1) return t.zonas[0].id;
+    }
+    return user.rol === 'ORGANIZACION' && zonasOrg.size === 1 ? [...zonasOrg][0] : null;
+  };
+  return verificar;
 }
 
 const prepararCtx = async (fase, user) => ({ zonas: await multicapa.cargarZonas(prisma, fase.evento.jurisdiccionId), alcance: await crearAlcance(user) });
 
+// Zona definitiva: coordenadas → zona elegida a mano → zona por defecto → sin zona
+async function zonaFinal(ctx, d) {
+  const r = multicapa.resolverZona(ctx.zonas, d);
+  if (r.zonaKey !== '_') return r;
+  const def = await ctx.alcance.porDefecto(d.tareaId);
+  return def && ctx.zonas.some((x) => x.id === def) ? { zonaKey: def, zonaOrigen: 'POR_DEFECTO' } : r;
+}
+
 async function insertar(tx, fase, ctx, d, extra) {
-  const { zonaKey, zonaOrigen } = multicapa.resolverZona(ctx.zonas, d);
+  const { zonaKey, zonaOrigen } = await zonaFinal(ctx, d);
   await ctx.alcance(zonaKey, extra.validarTarea === false ? null : d.tareaId);
   const { validarTarea, ...resto } = extra;
   const e = await tx.encuesta.create({
@@ -154,7 +173,7 @@ router.post('/fase/:faseId/csv', upload.single('archivo'), ah(async (req, res) =
         if (!zonaId) throw httpError(400, `Zona desconocida: ${zona}`);
       }
       const d = validarContenido(es, { latitud: lat || undefined, longitud: lng || undefined, zonaId, tareaId, respuestas, datosPersonales: dp, consentimientoDatos: SI.has((consentimiento || '').toLowerCase()) });
-      const { zonaKey } = multicapa.resolverZona(ctx.zonas, d);
+      const { zonaKey } = await zonaFinal(ctx, d);
       await ctx.alcance(zonaKey, d.tareaId);
       validas.push(d);
     } catch (x) { errores.push({ fila: i + 2, errores: mensajes(x) }); }

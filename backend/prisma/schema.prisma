@@ -7,50 +7,54 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum Rol{ 
-	ADMIN 
-	OPERADOR 
-	ORGANIZACION 
+enum Rol            { 
+ADMIN 
+OPERADOR 
+ORGANIZACION 
 }
-enum TipoPregunta{ 
-	TEXTO 
-	NUMERO 
-	BOOLEANO 
-	SELECCION_UNICA 
-	SELECCION_MULTIPLE 
-	ESCALA 
-	FECHA 
+enum TipoPregunta   { 
+TEXTO 
+NUMERO 
+BOOLEANO 
+SELECCION_UNICA 
+SELECCION_MULTIPLE 
+ESCALA 
+FECHA 
 }
-enum TipoCapa{ 
-	GENERAL 
-	SECCION 
-	BASE 
-	ADICIONAL 
+enum TipoCapa       { 
+GENERAL 
+SECCION 
+BASE 
+ADICIONAL 
 }
-enum Agregacion{ 
-	SUMA 
-	PROMEDIO 
-	CONTEO 
+enum Agregacion     { 
+SUMA 
+PROMEDIO 
+CONTEO 
 }
 enum EstadoIA       { 
-	PENDIENTE 
-	PROCESANDO 
-	CLASIFICADA 
-	ERROR 
+PENDIENTE 
+PROCESANDO 
+CLASIFICADA 
+ERROR 
 }
 enum OrigenEncuesta { 
-	MANUAL 
-	CSV 
+MANUAL 
+CSV 
 }
 enum EstadoEncuesta { 
-	VIGENTE 
-	NO_RELEVADO 
+VIGENTE 
+NO_RELEVADO 
 } // NO_RELEVADO = versión anterior o encuesta anulada (queda para seguimiento histórico)
 enum EstadoTarea    { 
-	PENDIENTE 
-	EN_CURSO 
-	COMPLETADA 
-	CANCELADA 
+PENDIENTE 
+EN_CURSO 
+COMPLETADA 
+CANCELADA 
+}
+enum TipoActividad  { 
+RELEVAMIENTO 
+INTERVENCION 
 }
 
 // ───────── Seguridad ─────────
@@ -62,7 +66,11 @@ model Usuario {
   rol          Rol        @default(OPERADOR)
   activo       Boolean    @default(true)
   creadoAt     DateTime   @default(now())
-  organizacionId String?  // rol ORGANIZACION: a qué organización pertenece
+  organizacionId String?  // ORGANIZACION: su organización · OPERADOR: organización de la que es voluntario
+  telefono     String?
+  documento    String?
+  direccion    String?
+  inscripciones Inscripcion[]
   organizacion Organizacion? @relation(fields: [organizacionId], references: [id], onDelete: SetNull)
   encuestas    Encuesta[]
 }
@@ -95,21 +103,24 @@ model Organizacion {
   descripcion String?
   contacto    String?
   zonas       Zona[]  // M:N implícita: en qué zonas trabaja la organización
+  email       String?
+  telefono    String?
+  direccion   String?
   usuarios    Usuario[]
   tareas      Tarea[]
 }
 
 // ───────── Eventos y fases ─────────
 model Evento {
-  id             String       @id @default(cuid())
+  id             String        @id @default(cuid())
   nombre         String
   tipo           String
-  estado         String       // ALERTA | RELEVAMIENTO | RECUPERACION | CERRADO ...
-  jurisdiccionId String
-  jurisdiccion   Jurisdiccion @relation(fields: [jurisdiccionId], references: [id])
-  eliminado      Boolean      @default(false) // borrado lógico
+  estado         String        // ALERTA | RELEVAMIENTO | RECUPERACION | CERRADO ...
+  jurisdiccionId String?
+  jurisdiccion   Jurisdiccion? @relation(fields: [jurisdiccionId], references: [id])
+  eliminado      Boolean       @default(false) // borrado lógico
   eliminadoAt    DateTime?
-  creadoAt       DateTime     @default(now())
+  creadoAt       DateTime      @default(now())
   fases          Fase[]
   capas          Capa[]
   estadisticos   Estadistico[]
@@ -118,15 +129,18 @@ model Evento {
 }
 
 model Fase {
-  id         String      @id @default(cuid())
-  eventoId   String
-  evento     Evento      @relation(fields: [eventoId], references: [id], onDelete: Cascade)
-  nombre     String
-  orden      Int         @default(0)
-  activa     Boolean     @default(false)
-  formulario Formulario?
-  encuestas  Encuesta[]
-  tareas     Tarea[]
+  id           String      @id @default(cuid())
+  createdAt    DateTime    @default(now())
+  eventoId     String
+  evento       Evento      @relation(fields: [eventoId], references: [id], onDelete: Cascade)
+  nombre       String
+  orden        Int         @default(0)
+  activa       Boolean     @default(false)
+  formulario   Formulario?
+  eliminado    Boolean   @default(false)
+  eliminadoAt  DateTime?
+  encuestas    Encuesta[]
+  tareas       Tarea[]
 }
 
 // ───────── Formularios dinámicos ─────────
@@ -276,14 +290,29 @@ model Tarea {
   zonas          Zona[]       // una o más zonas de la organización
   titulo         String
   descripcion    String?
+  tipo           TipoActividad @default(RELEVAMIENTO)
+  cupo           Int?         // máximo de voluntarios (null = sin límite)
   estado         EstadoTarea  @default(PENDIENTE)
   metaEncuestas  Int?
   venceAt        DateTime?
   creadaPorId    String
   createdAt      DateTime     @default(now())
   encuestas      Encuesta[]
+  inscripciones  Inscripcion[]
 
   @@index([organizacionId, faseId])
+}
+
+// Un voluntario (Usuario OPERADOR) se anota a una actividad de su organización
+model Inscripcion {
+  id        String   @id @default(cuid())
+  tareaId   String
+  tarea     Tarea    @relation(fields: [tareaId], references: [id], onDelete: Cascade)
+  usuarioId String
+  usuario   Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([tareaId, usuarioId])
 }
 
 // ───────── Estadísticos dinámicos ─────────

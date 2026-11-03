@@ -6,14 +6,14 @@ import FormularioEncuesta from './FormularioEncuesta';
 import { useZonasPermitidas, useTareas } from './CargaEncuestas';
 
 const ESTADOS = [['VIGENTE', 'Vigentes'], ['NO_RELEVADO', 'No relevado (anteriores y anuladas)'], ['todas', 'Todas']];
-const ORIGEN = { COORDENADAS: 'por coordenadas', MANUAL: 'manual', SIN_ZONA: 'sin zona' };
+const ORIGEN = { COORDENADAS: 'por coordenadas', MANUAL: 'manual', SIN_ZONA: 'sin zona', POR_DEFECTO: 'por defecto (zona de la actividad)' };
 const fecha = (d) => new Date(d).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' });
 const Etiqueta = ({ e }) => <span className={`badge ${e === 'VIGENTE' ? 'vigente' : 'no-relevado'}`}>{e === 'VIGENTE' ? 'Vigente' : 'No relevado'}</span>;
 
 export default function GestionEncuestas({ usuario }) {
   const { fase, formulario, zonas, refrescarDatos } = useMapa();
   const zonasPermitidas = useZonasPermitidas(usuario);
-  const tareas = useTareas();
+  const tareas = useTareas(usuario);
   const [estado, setEstado] = useState('VIGENTE');
   const [datos, setDatos] = useState({ total: 0, items: [] });
   const [editando, setEditando] = useState(null);

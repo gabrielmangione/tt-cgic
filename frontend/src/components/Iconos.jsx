@@ -8,3 +8,4 @@ export const Mapa = () => <svg {...base}><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6
 export const Usuarios = () => <svg {...base}><circle cx="9" cy="8" r="3" /><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6M16 6a3 3 0 010 6M18 14c2 .6 3 2.7 3 6" /></svg>;
 export const Termometro = () => <svg {...base} width="26" height="26" stroke="#E2492F" fill="#E2492F" fillOpacity=".25"><path d="M10 14V5a2 2 0 014 0v9a4 4 0 11-4 0z" /></svg>;
 export const Circulo = () => <svg {...base}><circle cx="12" cy="12" r="5" fill="currentColor" /></svg>;
+export const Alerta = () => <svg {...base}><path d="M12 3l10 18H2zM12 10v5M12 18h.01" /></svg>;

@@ -26,4 +26,17 @@ router.put('/:id', soloAdmin, ah(async (req, res) => {
   res.json(await prisma.jurisdiccion.update({ where: { id: req.params.id }, data }));
 }));
 
+router.delete('/:id', soloAdmin, ah(async (req, res) => {
+  await prisma.evento.updateMany({
+    where: { jurisdiccionId: req.params.id },
+    data: { jurisdiccionId: null }
+  });
+
+  await prisma.jurisdiccion.delete({
+    where: { id: req.params.id },
+  });
+  
+  res.status(204).end();
+}));
+
 module.exports = router;

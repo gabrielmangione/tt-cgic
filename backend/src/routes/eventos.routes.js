@@ -4,11 +4,14 @@ const { ah, z } = require('../utils');
 const { soloAdmin } = require('../middleware/auth');
 
 const cuerpo = z.object({
-  nombre: z.string().min(2), tipo: z.string().min(2), estado: z.string().min(2), jurisdiccionId: z.string().min(1),
+  nombre: z.string().min(2), 
+  tipo: z.string().min(2), 
+  estado: z.string().min(2), 
+  jurisdiccionId: z.string().min(1),
 });
 const incluir = { jurisdiccion: { select: { id: true, nombre: true, centro: true, bounds: true } }, fases: true };
 
-// GET filtra eliminados por defecto. ?eliminados=incluir | solo (sólo ADMIN)
+// GET filtra eliminados por defecto
 router.get('/', ah(async (req, res) => {
   const modo = req.user.rol === 'ADMIN' ? req.query.eliminados : undefined;
   const where = modo === 'solo' ? { eliminado: true } : modo === 'incluir' ? {} : { eliminado: false };
@@ -27,28 +30,50 @@ router.post('/', soloAdmin, ah(async (req, res) => {
   const d = cuerpo.parse(req.body);
   const evento = await prisma.$transaction(async (tx) => {
     const e = await tx.evento.create({ data: d });
-    // Capa GENERAL del evento: recibe el aporte de TODAS las preguntas
     await tx.capa.create({ data: { eventoId: e.id, nombre: 'General', tipo: 'GENERAL', color: '#B33A3A' } });
     return e;
   });
   res.status(201).json(evento);
 }));
 
+// Modificar Evento
 router.put('/:id', soloAdmin, ah(async (req, res) => {
-  res.json(await prisma.evento.update({ where: { id: req.params.id }, data: cuerpo.partial().parse(req.body) }));
-}));
+  const d = z.object({
+    nombre: z.string().min(2).optional(),
+    tipo: z.string().optional(),
+    estado: z.string().optional(),
+    jurisdiccionId: z.string().nullable().optional(), // <--- Permitir actualizar la jurisdicción
+  }).parse(req.body);
 
-// Baja lógica
+  const eventoActualizado = await prisma.evento.update({
+    where: { id: req.params.id },
+    data: {
+      ...(d.nombre !== undefined && { nombre: d.nombre }),
+      ...(d.tipo !== undefined && { tipo: d.tipo }),
+      ...(d.estado !== undefined && { estado: d.estado }),
+      ...(d.jurisdiccionId !== undefined && { jurisdiccionId: d.jurisdiccionId }),
+    },
+  });
+
+  res.json(eventoActualizado);
+}));
+// Baja lógica de Evento
 router.delete('/:id', soloAdmin, ah(async (req, res) => {
-  const e = await prisma.evento.update({ where: { id: req.params.id }, data: { eliminado: true, eliminadoAt: new Date() } });
+  const e = await prisma.evento.update({ 
+    where: { id: req.params.id }, 
+    data: { eliminado: true, eliminadoAt: new Date() } 
+  });
   res.json({ id: e.id, eliminado: true });
 }));
 
 router.post('/:id/restaurar', soloAdmin, ah(async (req, res) => {
-  res.json(await prisma.evento.update({ where: { id: req.params.id }, data: { eliminado: false, eliminadoAt: null } }));
+  res.json(await prisma.evento.update({ 
+    where: { id: req.params.id }, 
+    data: { eliminado: false, eliminadoAt: null } 
+  }));
 }));
 
-// Fases (asociadas al evento)
+// --- Fases ---
 router.post('/:id/fases', soloAdmin, ah(async (req, res) => {
   const d = z.object({ nombre: z.string().min(2), orden: z.number().int().default(0), activa: z.boolean().default(false) }).parse(req.body);
   res.status(201).json(await prisma.$transaction(async (tx) => {
@@ -56,6 +81,7 @@ router.post('/:id/fases', soloAdmin, ah(async (req, res) => {
     return tx.fase.create({ data: { ...d, eventoId: req.params.id } });
   }));
 }));
+
 router.post('/fases/:faseId/activar', soloAdmin, ah(async (req, res) => {
   const f = await prisma.fase.findUniqueOrThrow({ where: { id: req.params.faseId } });
   await prisma.$transaction([
@@ -65,4 +91,34 @@ router.post('/fases/:faseId/activar', soloAdmin, ah(async (req, res) => {
   res.json({ ok: true });
 }));
 
+router.put('/fases/:id', soloAdmin, ah(async (req, res) => {
+  const d = z.object({
+    nombre: z.string().min(2).optional(),
+    activa: z.boolean().optional(),
+  }).parse(req.body);
+
+  const faseActualizada = await prisma.fase.update({
+    where: { id: req.params.id },
+    data: d,
+  });
+  res.json(faseActualizada);
+}));
+
+// Baja lógica de Fase en lugar de prisma.fase.delete
+router.delete('/fases/:id', soloAdmin, ah(async (req, res) => {
+  const fase = await prisma.fase.update({
+    where: { id: req.params.id },
+    data: { eliminado: true, eliminadoAt: new Date() },
+  });
+  res.json({ id: fase.id, eliminado: true });
+}));
+
+router.post('/:id/restaurar', soloAdmin, ah(async (req, res) => {
+  const eventoRestaurado = await prisma.evento.update({
+    where: { id: req.params.id },
+    data: { eliminado: false, eliminadoAt: null },
+    include: { fases: true, jurisdiccion: true } // Incluimos relaciones clave
+  });
+  res.json(eventoRestaurado);
+}));
 module.exports = router;

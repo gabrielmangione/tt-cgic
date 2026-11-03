@@ -13,17 +13,17 @@ export function useZonasPermitidas(usuario) {
   return usuario?.rol === 'ORGANIZACION' ? zonas.filter((z) => propias?.has(z.id)) : zonas;
 }
 
-export function useTareas() {
+export function useTareas(usuario) {
   const { fase } = useMapa();
   const [tareas, setTareas] = useState([]);
-  useEffect(() => { if (fase) api.get(`/tareas?faseId=${fase.id}`).then((t) => setTareas(t.filter((x) => x.estado === 'PENDIENTE' || x.estado === 'EN_CURSO'))).catch(() => setTareas([])); }, [fase?.id]);
+  useEffect(() => { if (fase) api.get(`/tareas?faseId=${fase.id}`).then((t) => setTareas(t.filter((x) => x.vigente && (usuario?.rol !== 'OPERADOR' || x.yoInscripto)))).catch(() => setTareas([])); }, [fase?.id]);
   return tareas;
 }
 
 export default function CargaEncuestas({ usuario }) {
   const { fase, formulario, refrescarDatos } = useMapa();
   const zonas = useZonasPermitidas(usuario);
-  const tareas = useTareas();
+  const tareas = useTareas(usuario);
   const [tab, setTab] = useState('individual');
   const [msg, setMsg] = useState(null);
   const [csv, setCsv] = useState({ archivo: null, resultado: null, tareaId: '' });

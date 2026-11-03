@@ -41,6 +41,80 @@ export function EventoNuevo({ onCreado }) {
   );
 }
 
+export function EventoModificar({ evento, onModificado }) {
+  const [jurs, setJurs] = useState([]);
+  const [f, setF] = useState({ 
+    nombre: evento?.nombre || '', 
+    tipo: evento?.tipo || '', 
+    estado: evento?.estado || 'RELEVAMIENTO', 
+    jurisdiccionId: evento?.jurisdiccionId || '' 
+  });
+  const [subir, setSubir] = useState(false);
+  const [error, setError] = useState(null);
+
+  const cargar = () => api.get('/jurisdicciones').then(setJurs);
+  useEffect(() => { cargar(); }, []);
+
+  async function enviar(e) {
+    e.preventDefault(); 
+    setError(null);
+    try { 
+      const actualizado = await api.put(`/eventos/${evento.id}`, f); 
+      onModificado(actualizado); 
+    } catch (x) { 
+      setError(msg(x)); 
+    }
+  }
+
+  return (
+    <form className="panel sin-borde" onSubmit={enviar}>
+      <h2>Modificar evento</h2>
+      <label>Nombre
+        <input required value={f.nombre} onChange={(e) => setF({ ...f, nombre: e.target.value })} />
+      </label>
+      <div className="fila">
+        <label>Tipo
+          <input required list="tipos-evento" value={f.tipo} onChange={(e) => setF({ ...f, tipo: e.target.value })} />
+          <datalist id="tipos-evento">{['Inundación', 'Incendio', 'Sismo', 'Temporal'].map((t) => <option key={t} value={t} />)}</datalist>
+        </label>
+        <label>Estado
+          <select value={f.estado} onChange={(e) => setF({ ...f, estado: e.target.value })}>
+            {ESTADOS.map((s) => <option key={s}>{s}</option>)}
+          </select>
+        </label>
+      </div>
+
+      <label>Mapa de la zona a relevar (Jurisdicción)
+        <select required value={f.jurisdiccionId} onChange={(e) => setF({ ...f, jurisdiccionId: e.target.value })}>
+          <option value="">Elegí un mapa cargado…</option>
+          {jurs.map((j) => <option key={j.id} value={j.id}>{j.nombre}</option>)}
+        </select>
+      </label>
+
+      <button type="button" onClick={() => setSubir(!subir)}>
+        {subir ? 'Ocultar carga de mapa' : 'Cargar un mapa nuevo para reemplazar'}
+      </button>
+
+      {subir && (
+        <MapUploader 
+          destino="jurisdiccion" 
+          onGuardado={async (j) => { 
+            await cargar(); 
+            setF((x) => ({ ...x, jurisdiccionId: j.id })); 
+            setSubir(false); 
+          }} 
+        />
+      )}
+
+      {error && <p role="alert" className="error">{error}</p>}
+      
+      <div className="acciones">
+        <button className="primario" disabled={!f.jurisdiccionId}>Guardar cambios</button>
+      </div>
+    </form>
+  );
+}
+
 export function FaseNueva({ evento, onCreada }) {
   const [nombre, setNombre] = useState('');
   const [activa, setActiva] = useState(true);

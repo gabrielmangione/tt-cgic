@@ -1,18 +1,21 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, setToken, haySesion } from './lib/api';
 import { useMapa } from './store/mapaStore';
+import Header from './components/Header';
 import Sidebar from './components/Sidebar';
 import MapView from './components/MapView';
 import Footer from './components/Footer';
 import CargaEncuestas from './components/CargaEncuestas';
 import GestionEncuestas from './components/GestionEncuestas';
 import Tareas from './components/Tareas';
+import Voluntarios from './components/Voluntarios';
+import Perfil from './components/Perfil';
+import PanelAdmin from './components/PanelAdmin';
 import Configuracion from './components/Configuracion';
 import FormulaBuilder from './components/FormulaBuilder';
 import MapUploader from './components/MapUploader';
 import Modal from './components/Modal';
 import { EventoNuevo, FaseNueva } from './components/EventoForm';
-import { Mas, Usuarios, Termometro } from './components/Iconos';
 import './termometro.css';
 
 function Login({ onOk }) {
@@ -37,26 +40,43 @@ export default function App() {
   const [usuario, setUsuario] = useState(null);
   const [logueado, setLogueado] = useState(haySesion());
   const [eventos, setEventos] = useState([]);
-  const [vista, setVista] = useState('mapa'); // mapa | carga | encuestas | tareas | config
+  const [vista, setVista] = useState('mapa'); // mapa | carga | encuestas | tareas | voluntarios | perfil | panel | config
   const [tabConfig, setTabConfig] = useState('usuarios');
   const [modal, setModal] = useState(null);   // mapa-capa | evento | fase | estadistico  (todos exclusivos de ADMIN)
   const [menu, setMenu] = useState(false);
+  
+  const [sidebarColapsado, setSidebarColapsado] = useState(false);
+
   const { evento, fase, cargarEvento, seleccionarFase, refrescarDatos } = useMapa();
 
   const rol = usuario?.rol;
   const puedeTareas = rol === 'ADMIN' || rol === 'ORGANIZACION';
-  const admin = usuario?.rol === 'ADMIN'; // sólo UX: el backend vuelve a exigir el rol en cada ruta
+  const admin = usuario?.rol === 'ADMIN'; 
   const cerrar = useCallback(() => setModal(null), []);
-  const cargarEventos = useCallback(() => api.get('/eventos').then((e) => { setEventos(e); return e; }), []);
+  
+  const recargarYResetearEventos = useCallback(async () => {
+    try {
+      const lista = await api.get('/eventos');
+      setEventos(lista);
+      
+      if (lista.length === 0) {
+        setVista('mapa');
+      }
+      return lista;
+    } catch (e) {
+      console.error("Error al recargar eventos:", e);
+    }
+  }, []);
 
   useEffect(() => { const h = () => setLogueado(false); window.addEventListener('tt:logout', h); return () => window.removeEventListener('tt:logout', h); }, []);
   useEffect(() => {
     if (!logueado) return;
     api.get('/auth/me').then(setUsuario);
-    cargarEventos().then((e) => e[0] && cargarEvento(e[0].id));
-  }, [logueado]);
+    recargarYResetearEventos().then((lista) => {
+      if (lista && lista.length > 0) cargarEvento(lista[0].id);
+    });
+  }, [logueado, recargarYResetearEventos, cargarEvento]);
 
-  // El mapa se repinta solo cuando entran encuestas nuevas (de otros usuarios también)
   useEffect(() => {
     if (!logueado || vista !== 'mapa') return;
     const t = setInterval(() => refrescarDatos(), 30000);
@@ -64,52 +84,45 @@ export default function App() {
   }, [logueado, vista, refrescarDatos]);
 
   if (!logueado) return <Login onOk={(u) => { setUsuario(u); setLogueado(true); }} />;
-  const iniciales = (usuario?.nombre ?? '?').split(/\s+/).map((p) => p[0]).slice(0, 2).join('').toUpperCase();
+  
   const irConfig = (tab) => { setTabConfig(tab); setVista('config'); setMenu(false); };
+  const ir = (v) => { setVista(v); setMenu(false); };
 
   return (
     <div className="app">
-      <header className="cabecera">
-        <div className="marca"><Termometro /><h1>Termómetro Territorial</h1></div>
+      {/* Componente Header independiente */}
+      <Header 
+        evento={evento}
+        eventos={eventos}
+        fase={fase}
+        usuario={usuario}
+        admin={admin}
+        puedeTareas={puedeTareas}
+        vista={vista}
+        menu={menu}
+        setMenu={setMenu}
+        cargarEvento={cargarEvento}
+        seleccionarFase={seleccionarFase}
+        setModal={setModal}
+        setVista={setVista}
+        irConfig={irConfig}
+        ir={ir}
+        setToken={setToken}
+        setLogueado={setLogueado}
+      />
 
-        <div className="selector">
-          <select aria-label="Evento" value={evento?.id ?? ''} onChange={(e) => cargarEvento(e.target.value)}>
-            {!eventos.length && <option value="">Sin eventos</option>}
-            {eventos.map((e) => <option key={e.id} value={e.id}>{e.nombre}</option>)}
-          </select>
-          {admin && <button className="mas" aria-label="Nuevo evento" onClick={() => setModal('evento')}><Mas /></button>}
-        </div>
-        {evento && (
-          <div className="selector">
-            <select aria-label="Fase" value={fase?.id ?? ''} onChange={(e) => seleccionarFase(e.target.value)}>
-              {!evento.fases.length && <option value="">Sin fases</option>}
-              {evento.fases.map((f) => <option key={f.id} value={f.id}>{f.nombre}</option>)}
-            </select>
-            {admin && <button className="mas" aria-label="Nueva fase" onClick={() => setModal('fase')}><Mas /></button>}
-          </div>
+      <main className={vista === 'mapa' && evento ? `principal con-mapa ${sidebarColapsado ? 'sidebar-colapsada' : ''}` : 'principal'}>
+        {vista === 'mapa' && evento && (
+          <>
+            <Sidebar 
+              admin={admin} 
+              onCargarCapa={() => setModal('mapa-capa')} 
+              colapsado={sidebarColapsado}
+              onToggleColapsar={() => setSidebarColapsado(!sidebarColapsado)}
+            />
+            <MapView />
+          </>
         )}
-
-        <div className="cab-der">
-          {vista !== 'mapa' && <button className="ghost" onClick={() => setVista('mapa')}>← Volver al mapa</button>}
-          {vista !== 'carga' && <button className="ghost" onClick={() => setVista('carga')}>Cargar encuestas</button>}
-          {vista !== 'encuestas' && <button className="ghost" onClick={() => setVista('encuestas')}>Encuestas</button>}
-          {puedeTareas && vista !== 'tareas' && <button className="ghost" onClick={() => setVista('tareas')}>Tareas</button>}
-          {admin && <button className="ghost borde" onClick={() => irConfig('organizaciones')}><Usuarios />Organizaciones</button>}
-          <div className="avatar-wrap">
-            <button className="avatar" aria-label="Cuenta" aria-expanded={menu} onClick={() => setMenu(!menu)}>{iniciales}</button>
-            {menu && (
-              <div className="menu" role="menu">
-                <p><strong>{usuario?.nombre}</strong><br /><small>{{ ADMIN: 'Administrador', ORGANIZACION: 'Organización', OPERADOR: 'Voluntario / Operador' }[rol]}</small></p>
-                {admin && <button role="menuitem" onClick={() => irConfig('usuarios')}>Configuración</button>}
-                <button role="menuitem" onClick={() => { setToken(null); setLogueado(false); }}>Salir</button>
-              </div>
-            )}
-          </div>
-        </div>
-      </header>
-
-      <main className={vista === 'mapa' && evento ? 'principal con-mapa' : 'principal'}>
-        {vista === 'mapa' && evento && <><Sidebar admin={admin} onCargarCapa={() => setModal('mapa-capa')} /><MapView /></>}
         {vista === 'mapa' && !evento && (
           <div className="panel vacio-inicial">
             <h2>Todavía no hay eventos</h2>
@@ -119,7 +132,10 @@ export default function App() {
         )}
         {vista === 'carga' && <CargaEncuestas usuario={usuario} />}
         {vista === 'encuestas' && <GestionEncuestas usuario={usuario} />}
-        {vista === 'tareas' && puedeTareas && <Tareas usuario={usuario} />}
+        {vista === 'tareas' && <Tareas usuario={usuario} />}
+        {vista === 'voluntarios' && puedeTareas && <Voluntarios usuario={usuario} />}
+        {vista === 'perfil' && <Perfil usuario={usuario} onActualizado={(u) => setUsuario((x) => ({ ...x, ...u }))} />}
+        {vista === 'panel' && admin && <PanelAdmin onCambioEventos={recargarYResetearEventos} />}
         {vista === 'config' && admin && <Configuracion key={tabConfig} usuario={usuario} tabInicial={tabConfig} />}
       </main>
 
@@ -127,7 +143,7 @@ export default function App() {
 
       {admin && modal === 'evento' && (
         <Modal titulo="Nuevo evento" onCerrar={cerrar} ancho={720}>
-          <EventoNuevo onCreado={async (ev) => { await cargarEventos(); await cargarEvento(ev.id); cerrar(); }} />
+          <EventoNuevo onCreado={async (ev) => { await recargarYResetearEventos(); await cargarEvento(ev.id); cerrar(); }} />
         </Modal>
       )}
       {admin && modal === 'fase' && evento && (

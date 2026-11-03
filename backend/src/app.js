@@ -2,7 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const helmet = require('helmet');
 const cors = require('cors');
-const { autenticar, soloAdmin } = require('./middleware/auth');
+const { autenticar, soloAdmin, requerirRol } = require('./middleware/auth');
 const { errorHandler } = require('./utils');
 
 const app = express();
@@ -27,6 +27,10 @@ app.use('/api/capas', require('./routes/capas.routes'));
 app.use('/api/formularios', require('./routes/formularios.routes'));
 app.use('/api/encuestas', require('./routes/encuestas.routes'));
 app.use('/api/tareas', require('./routes/tareas.routes'));
+app.use('/api/perfil', require('./routes/perfil.routes'));
+app.use('/api/voluntarios', requerirRol('ADMIN', 'ORGANIZACION'), require('./routes/voluntarios.routes'));
+app.use('/api/panel', soloAdmin, require('./routes/panel.routes'));
+app.use('/api/panorama', require('./routes/panorama.routes'));
 app.use('/api/estadisticos', require('./routes/estadisticos.routes'));
 app.use(errorHandler);
 

@@ -126,30 +126,99 @@ function Zonas() {
 }
 
 function MapasYCapas() {
-  const { evento, capas, jurisdiccion, cargarEvento } = useMapa();
+  const { evento, jurisdiccion, cargarEvento } = useMapa();
   const [error, setError] = useState(null);
   const recargar = () => cargarEvento(evento.id);
-  const editar = async (id, d) => { setError(null); try { await api.put(`/capas/${id}`, d); recargar(); } catch (e) { setError(msgError(e)); } };
+
+  // Función para modificar datos del mapa base (jurisdicción)
+  const editarJurisdiccion = async (id, d) => {
+    setError(null);
+    try {
+      await api.put(`/jurisdicciones/${id}`, d);
+      recargar();
+    } catch (e) {
+      setError(msgError(e));
+    }
+  };
+
+  // Función para desvincular o eliminar el mapa base principal del evento
+  const eliminarMapaBase = async () => {
+    if (!jurisdiccion) return;
+    if (!confirm(`¿Estás seguro de eliminar el mapa base «${jurisdiccion.nombre}»?`)) return;
+    setError(null);
+    try {
+      // Llamamos directamente a la ruta DELETE del backend de jurisdicciones
+      await api.del(`/jurisdicciones/${jurisdiccion.id}`);
+      recargar();
+    } catch (e) {
+      setError(msgError(e));
+    } 
+  };
+
   return (
     <div className="columna">
-      <MapUploader destino="jurisdiccion" onGuardado={async (j) => { await api.put(`/eventos/${evento.id}`, { jurisdiccionId: j.id }); recargar(); }} />
-      <p className="vacio">Mapa base actual: {jurisdiccion?.nombre ?? 'ninguno'}. Cargar uno nuevo lo asigna a este evento.</p>
-      <MapUploader destino="capa" eventoId={evento.id} onGuardado={recargar} />
-      <section className="panel">
-        <h2>Capas del evento</h2>
-        {error && <p role="alert" className="error">{error}</p>}
-        <table className="tabla-vars">
-          <thead><tr><th>Nombre</th><th>Color</th><th>Ícono</th><th></th></tr></thead>
-          <tbody>{capas.filter((c) => c.tipo === 'ADICIONAL' || c.tipo === 'BASE').map((c) => (
-            <tr key={c.id}>
-              <td><input defaultValue={c.nombre} onBlur={(e) => e.target.value !== c.nombre && editar(c.id, { nombre: e.target.value })} /></td>
-              <td><input type="color" defaultValue={c.color} onBlur={(e) => e.target.value !== c.color && editar(c.id, { color: e.target.value })} /></td>
-              <td><input maxLength={2} defaultValue={c.icon ?? ''} onBlur={(e) => e.target.value !== (c.icon ?? '') && editar(c.id, { icon: e.target.value || null })} /></td>
-              <td><button onClick={async () => { if (confirm(`¿Eliminar la capa ${c.nombre}?`)) { await api.del(`/capas/${c.id}`); recargar(); } }}>Eliminar</button></td>
-            </tr>
-          ))}</tbody>
-        </table>
+      {error && <p role="alert" className="error">{error}</p>}
+      
+      {/* Sección del Mapa Base / Principal */}
+      <section className="panel" style={{ marginBottom: '20px' }}>
+        <h2>Mapa Base / Jurisdicción Principal</h2>
+        {jurisdiccion ? (
+          <div style={{ marginTop: '12px' }}>
+            <table className="tabla-vars">
+              <thead>
+                <tr>
+                  <th>Nombre del Mapa Base</th>
+                  <th>Polígonos / Zonas base</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>
+                    <input 
+                      defaultValue={jurisdiccion.nombre} 
+                      onBlur={(e) => e.target.value !== jurisdiccion.nombre && editarJurisdiccion(jurisdiccion.id, { nombre: e.target.value })} 
+                      style={{ width: '100%' }} 
+                    />
+                  </td>
+                  <td>
+                    <span className="badge">
+                      {jurisdiccion.geometria?.features?.length ?? 0} elementos
+                    </span>
+                  </td>
+                  <td>
+                    <button 
+                      className="ghost" 
+                      onClick={eliminarMapaBase}
+                    >
+                      Quitar principal
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <p className="vacio" style={{ marginTop: '8px' }}>
+              Puedes renombrar el mapa haciendo clic sobre su nombre o quitarlo para asignar uno nuevo.
+            </p>
+          </div>
+        ) : (
+          <p className="vacio">Este evento no tiene un mapa base asignado todavía.</p>
+        )}
+
+        <div style={{ marginTop: '20px' }}>
+          <h3>Cargar o Reemplazar Mapa Base</h3>
+          <MapUploader 
+            destino="jurisdiccion" 
+            onGuardado={async (j) => { 
+              await api.put(`/eventos/${evento.id}`, { jurisdiccionId: j.id }); 
+              recargar(); 
+            }} 
+          />
+        </div>
       </section>
+
+      {/* Sección de Capas Adicionales */}
+      <MapUploader destino="capa" eventoId={evento.id} onGuardado={recargar} />
     </div>
   );
 }

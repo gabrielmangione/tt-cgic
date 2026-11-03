@@ -12,44 +12,15 @@ export function valorZona(resumenZona, preguntaId) {
   return p.n ? p.suma : null;
 }
 
-// Valor de la VARIABLE OBJETIVO por zona. BOOLEANO: % de hogares con «sí». ESCALA: promedio sobre el rango.
-// SELECCIÓN: las opciones se ordenan de menos a más grave; se promedia su posición. NUMERO: promedio (se normaliza por el máximo).
-export function valorObjetivo(p, resumenZona) {
-  const r = resumenZona?.[p.id];
-  if (!r) return null;
-  switch (p.tipo) {
-    case 'BOOLEANO': return r.n ? (100 * r.suma) / r.n : null;
-    case 'ESCALA': { const min = p.min ?? 0, max = p.max ?? 10; return r.n ? Math.min(100, Math.max(0, (100 * (r.suma / r.n - min)) / (max - min || 1))) : null; }
-    case 'SELECCION_UNICA': case 'SELECCION_MULTIPLE': {
-      const ops = p.opciones ?? []; if (ops.length < 2) return null;
-      let tot = 0, pes = 0;
-      for (const [c, n] of Object.entries(r.categorias)) { const i = ops.indexOf(c); if (i >= 0) { tot += n; pes += (n * i) / (ops.length - 1); } }
-      return tot ? (100 * pes) / tot : null;
-    }
-    case 'NUMERO': return r.n ? r.suma / r.n : null;
-    default: return null;
-  }
-}
-
 /**
  * Índice 0–100 por zona que pinta el mapa.
- *  · Pregunta elegida en el panel: su valor relativo al máximo.
- *  · Panorama general: la VARIABLE OBJETIVO del formulario; si no hay, el promedio del puntaje de IA.
+ *  · Pregunta elegida en el panel: su valor relativo al máximo (resúmenes de la capa).
+ *  · Panorama general: promedio del puntaje de la variable objetivo = Σ puntaje / viviendas relevadas de la zona (lo calcula el backend).
  */
-export function indicePorZona({ zonas, encuestas, resumenes, preguntaActiva, objetivo, generalId }) {
+export function indicePorZona({ zonas, resumenes, preguntaActiva, panorama }) {
   const out = {};
-  if (!preguntaActiva && objetivo) {
-    const res = resumenes[generalId] ?? {};
-    const vals = {};
-    for (const z of zonas) { const v = valorObjetivo(objetivo, res[z.id]); if (v != null) vals[z.id] = v; }
-    const max = Math.max(0, ...Object.values(vals));
-    for (const [k, v] of Object.entries(vals)) out[k] = Math.round(objetivo.tipo === 'NUMERO' ? (max > 0 ? (100 * v) / max : 0) : v);
-    return out;
-  }
   if (!preguntaActiva) {
-    const acc = {};
-    for (const e of encuestas) if (e.scoreIA != null && e.zonaKey !== '_') (acc[e.zonaKey] ??= []).push(e.scoreIA);
-    for (const [k, v] of Object.entries(acc)) out[k] = Math.round((100 * v.reduce((a, b) => a + b, 0)) / v.length);
+    for (const z of zonas) { const p = panorama?.zonas?.[z.id]; if (p?.n) out[z.id] = Math.round(p.promedio); }
     return out;
   }
   const res = resumenes[preguntaActiva.capaId] ?? {};
@@ -71,11 +42,18 @@ export function zonaPorPunto(zonas, lat, lng) {
   }) ?? null;
 }
 
-// ¿Este hogar presenta la problemática de la pregunta?
-export function tieneProblema(p, v) {
-  if (v == null || v === '') return false;
-  if (p.tipo === 'BOOLEANO') return v === true;
-  if (p.tipo === 'NUMERO' || p.tipo === 'ESCALA') return Number(v) > 0;
-  if (Array.isArray(v)) return v.length > 0;
-  return true;
+// Centroide (punto medio) de una zona: [lat, lng]. Con MultiPolygon se usa el polígono de mayor área.
+// Sirve para dibujar las encuestas que no tienen latitud/longitud.
+function centroAnillo(r) {
+  let a = 0, cx = 0, cy = 0;
+  for (let i = 0, j = r.length - 1; i < r.length; j = i++) { const [x0, y0] = r[j], [x1, y1] = r[i], f = x0 * y1 - x1 * y0; a += f; cx += (x0 + x1) * f; cy += (y0 + y1) * f; }
+  a /= 2;
+  return a ? { area: Math.abs(a), x: cx / (6 * a), y: cy / (6 * a) } : null;
+}
+export function centroide(geom) {
+  const g = geom?.type === 'Feature' ? geom.geometry : geom;
+  const polis = g?.type === 'Polygon' ? [g.coordinates] : g?.type === 'MultiPolygon' ? g.coordinates : [];
+  let mejor = null;
+  for (const p of polis) { const c = centroAnillo(p[0]); if (c && (!mejor || c.area > mejor.area)) mejor = c; }
+  return mejor ? [mejor.y, mejor.x] : null;
 }

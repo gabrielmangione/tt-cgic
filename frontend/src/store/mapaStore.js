@@ -9,6 +9,8 @@ export const useMapa = create((set, get) => ({
   evento: null, jurisdiccion: null, fase: null, formulario: null,
   capas: [], zonas: [], encuestas: [], resumenes: {},
   visibles: {}, mostrarEncuestas: true, verLimites: true, verOrganizaciones: false,
+  panorama: null,         // { zonas: { [zonaId]: { n, promedio } }, objetivo, total, promedio }
+  graves: null, verGraves: false, umbral: 70, // capa «casos más graves»
   preguntaActiva: null,   // { preguntaId, capaId } — null = Panorama general
   seleccion: null,        // diálogo flotante
   actualizadoAt: null, cargando: false, error: null,
@@ -31,11 +33,14 @@ export const useMapa = create((set, get) => ({
 
   // Cambiar de fase: formulario + encuestas + resúmenes de esa fase
   async cargarFase(fase) {
-    if (!fase) return set({ fase: null, formulario: null, encuestas: [], resumenes: {}, preguntaActiva: null, actualizadoAt: new Date() });
+    if (!fase) return set({ fase: null, formulario: null, encuestas: [], resumenes: {}, preguntaActiva: null, panorama: null, graves: null, actualizadoAt: new Date() });
     const [formulario, enc] = await Promise.all([api.get(`/formularios/fase/${fase.id}`).catch(() => null), api.get(`/encuestas/fase/${fase.id}?limit=2000&liviano=1`)]);
-    set({ fase, formulario, encuestas: enc.items, resumenes: {}, preguntaActiva: null, actualizadoAt: new Date() });
+    let umbral = 70;
+    try { const g = localStorage.getItem(`tt_umbral_${fase.id}`); if (g !== null) umbral = Number(g); } catch { /* sin storage */ }
+    set({ fase, formulario, encuestas: enc.items, resumenes: {}, preguntaActiva: null, umbral, actualizadoAt: new Date() });
     const general = get().capas.find((c) => c.tipo === 'GENERAL');
     if (general) await get().cargarResumen(general.id);
+    await Promise.all([get().cargarPanorama(), get().cargarGraves()]);
   },
 
   async seleccionarFase(faseId) {
@@ -43,6 +48,26 @@ export const useMapa = create((set, get) => ({
     const capas = await api.get(`/capas?eventoId=${evento.id}`);
     set({ capas });
     await get().cargarFase(evento.fases.find((f) => f.id === faseId));
+  },
+
+  // Panorama general: promedio del puntaje de la variable objetivo por zona (lo calcula el backend)
+  async cargarPanorama() {
+    const { fase } = get();
+    if (!fase) return;
+    set({ panorama: await api.get(`/panorama/${fase.id}`).catch(() => null) });
+  },
+  // Casos más graves: viviendas con puntaje mayor al umbral
+  async cargarGraves() {
+    const { fase, verGraves, umbral } = get();
+    if (!fase || !verGraves) return set({ graves: null });
+    set({ graves: await api.get(`/panorama/${fase.id}/graves?umbral=${umbral}`).catch(() => null) });
+  },
+  toggleGraves() { set((s) => ({ verGraves: !s.verGraves })); get().cargarGraves(); },
+  setUmbral(valor) {
+    const v = Math.max(0, Math.min(100, Number(valor) || 0));
+    const f = get().fase;
+    try { if (f) localStorage.setItem(`tt_umbral_${f.id}`, String(v)); } catch { /* sin storage */ }
+    set({ umbral: v });
   },
 
   async cargarResumen(capaId) {
@@ -67,5 +92,6 @@ export const useMapa = create((set, get) => ({
     if (!fase) return;
     const [enc] = await Promise.all([api.get(`/encuestas/fase/${fase.id}?limit=2000&liviano=1`), ...Object.keys(resumenes).map((id) => get().cargarResumen(id))]);
     set({ encuestas: enc.items, actualizadoAt: new Date() });
+    await Promise.all([get().cargarPanorama(), get().cargarGraves()]);
   },
 }));

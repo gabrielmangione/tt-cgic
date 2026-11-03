@@ -51,7 +51,7 @@ export default function FormularioEncuesta({ formulario, zonas, tareas = [], ini
         respuestas: resp, datosPersonales: campos.length ? datos : undefined, consentimientoDatos: consent, ...(conMotivo && { motivo }),
       });
       if (!inicial) { setResp({}); setDatos({}); setConsent(false); }
-      setMsg({ tipo: 'ok', texto: r?.zonaOrigen === 'COORDENADAS' ? 'Guardada. Zona asignada por las coordenadas.' : r?.zonaOrigen === 'MANUAL' ? 'Guardada. Zona asignada manualmente.' : 'Guardada sin zona (no hay coordenadas ni zona elegida).' });
+      setMsg({ tipo: 'ok', texto: r?.zonaOrigen === 'COORDENADAS' ? 'Guardada. Zona asignada por las coordenadas.' : r?.zonaOrigen === 'MANUAL' ? 'Guardada. Zona asignada manualmente.' : r?.zonaOrigen === 'POR_DEFECTO' ? 'Guardada. Sin coordenadas ni zona elegida: se usó la zona de la actividad.' : 'Guardada sin zona (no hay coordenadas ni zona elegida).' });
     } catch (err) {
       setMsg({ tipo: 'error', texto: err.detalle?.detalle?.map?.((i) => `${i.path.join('.')}: ${i.message}`).join(' · ') || err.message });
     } finally { setEnviando(false); }
