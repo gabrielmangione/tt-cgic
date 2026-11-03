@@ -7,7 +7,7 @@ import MapView from './components/MapView';
 import Footer from './components/Footer';
 import CargaEncuestas from './components/CargaEncuestas';
 import GestionEncuestas from './components/GestionEncuestas';
-import Tareas from './components/Tareas';
+import Tareas from './components/Tareas'; 
 import Voluntarios from './components/Voluntarios';
 import Perfil from './components/Perfil';
 import PanelAdmin from './components/PanelAdmin';
@@ -18,6 +18,7 @@ import Modal from './components/Modal';
 import { EventoNuevo, FaseNueva } from './components/EventoForm';
 import OrganizacionesAdmin from './components/OrganizacionesAdmin';
 import EncuestasAdminVista from './components/EncuestaAdmin';
+import MisEncuestas from './components/MisEncuestas';
 import './termometro.css';
 
 function Login({ onOk }) {
@@ -52,12 +53,17 @@ export default function App() {
   const { evento, fase, cargarEvento, seleccionarFase, refrescarDatos } = useMapa();
 
   const rol = usuario?.rol;
+  const esVoluntario = usuario?.rol === 'OPERADOR' || usuario?.rol === 'VOLUNTARIO';
   const puedeTareas = rol === 'ADMIN' || rol === 'ORGANIZACION';
   const admin = usuario?.rol === 'ADMIN'; 
   const cerrar = useCallback(() => setModal(null), []);
   
   const recargarYResetearEventos = useCallback(async () => {
     try {
+      if (esVoluntario) {
+        setEventos([]);
+        return [];
+      }
       const lista = await api.get('/eventos');
       setEventos(lista);
       
@@ -67,8 +73,9 @@ export default function App() {
       return lista;
     } catch (e) {
       console.error("Error al recargar eventos:", e);
+      setEventos([]);
     }
-  }, []);
+  }, [esVoluntario]);
 
   useEffect(() => { const h = () => setLogueado(false); window.addEventListener('tt:logout', h); return () => window.removeEventListener('tt:logout', h); }, []);
   useEffect(() => {
@@ -78,6 +85,12 @@ export default function App() {
       if (lista && lista.length > 0) cargarEvento(lista[0].id);
     });
   }, [logueado, recargarYResetearEventos, cargarEvento]);
+
+  useEffect(() => {
+    if (esVoluntario && ['mapa', 'organizaciones', 'encuestas', 'actividades', 'panel', 'config'].includes(vista)) {
+      setVista('carga'); // Vista por defecto para voluntarios
+    }
+  }, [esVoluntario, vista]);
 
   useEffect(() => {
     if (!logueado || vista !== 'mapa') return;
@@ -126,6 +139,7 @@ export default function App() {
         {muestraSidebar && (
           <Sidebar 
             admin={admin} 
+            usuario={usuario}
             onCargarCapa={() => setModal('mapa-capa')} 
             colapsado={sidebarColapsado}
             onToggleColapsar={() => setSidebarColapsado(!sidebarColapsado)}
@@ -142,14 +156,17 @@ export default function App() {
           </div>
         )}
         {vista === 'carga' && <CargaEncuestas usuario={usuario} />}
-        {vista === 'tareas' && <Tareas usuario={usuario} />}
+        {/*vista === 'tareas' && <Tareas usuario={usuario} />*/}
         {vista === 'voluntarios' && puedeTareas && <Voluntarios usuario={usuario} />}
         {vista === 'perfil' && <Perfil usuario={usuario} onActualizado={(u) => setUsuario((x) => ({ ...x, ...u }))} />}
         {vista === 'panel' && admin && <PanelAdmin onCambioEventos={recargarYResetearEventos} />}
         {vista === 'config' && admin && <Configuracion key={tabConfig} usuario={usuario} tabInicial={tabConfig} />}
         {vista === 'organizaciones' && admin && <OrganizacionesAdmin />}
         {vista === 'encuestas' && admin && <EncuestasAdminVista />}
-        {vista === 'actividades' && <Tareas usuario={usuario} admin={admin} />}
+        {vista === 'mis-encuestas' && <MisEncuestas usuario={usuario} />}
+        
+        {/* Aquí se renderiza la vista de actividades con el nuevo diseño en filas */}
+        {vista === 'actividades' && <Tareas usuario={usuario} />}
       </main>
 
       {vista === 'mapa' && evento && <Footer admin={admin} onAgregar={() => setModal('estadistico')} />}

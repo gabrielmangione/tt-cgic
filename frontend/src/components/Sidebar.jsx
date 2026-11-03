@@ -6,11 +6,14 @@ const Interruptor = ({ activo, onChange, etiqueta }) => (
   <button type="button" role="switch" aria-checked={activo} aria-label={etiqueta} className="interruptor" onClick={onChange}><span /></button>
 );
 
-export default function Sidebar({ admin = false, onCargarCapa, colapsado = false, onToggleColapsar }) {
+export default function Sidebar({ admin = false, usuario, onCargarCapa, colapsado = false, onToggleColapsar }) {
   const s = useMapa();
   const { evento, formulario, capas, visibles, preguntaActiva, activarPregunta, limpiarPregunta, cargarEvento } = s;
 
   if (!evento) return <aside className="sidebar" />;
+
+  const rol = usuario?.rol;
+  const puedeGestionarActividades = rol === 'ADMIN' || rol === 'ORGANIZACION';
 
   const general = capas.find((c) => c.tipo === 'GENERAL');
   const capaDe = Object.fromEntries(capas.map((c) => [c.id, c]));
@@ -107,7 +110,7 @@ export default function Sidebar({ admin = false, onCargarCapa, colapsado = false
             </li>
           </ul>
 
-          {/* SECCIÓN DE ENCUESTAS (Ubicada justo debajo de organizaciones) */}
+          {/* SECCIÓN DE ENCUESTAS */}
           <div className="sb-cab" style={{ marginTop: '20px' }}>
             <h2 className="sb-titulo">Encuestas</h2>
             {admin && (
@@ -144,7 +147,8 @@ export default function Sidebar({ admin = false, onCargarCapa, colapsado = false
           {/* SECCIÓN DE ACTIVIDADES */}
           <div className="sb-cab" style={{ marginTop: '20px' }}>
             <h2 className="sb-titulo">Actividades</h2>
-            {admin && (
+            {/* Permitimos gestionar tanto a ADMIN como a ORGANIZACION */}
+            {puedeGestionarActividades && (
               <button 
                 type="button"
                 className="ghost" 

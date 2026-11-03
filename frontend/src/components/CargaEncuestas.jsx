@@ -24,6 +24,10 @@ export default function CargaEncuestas({ usuario }) {
   const { fase, formulario, refrescarDatos } = useMapa();
   const zonas = useZonasPermitidas(usuario);
   const tareas = useTareas(usuario);
+  
+  const esVoluntario = usuario?.rol === 'OPERADOR' || usuario?.rol === 'VOLUNTARIO';
+
+  // Si es voluntario forzamos la pestaña a 'individual', de lo contrario permitimos elegir
   const [tab, setTab] = useState('individual');
   const [msg, setMsg] = useState(null);
   const [csv, setCsv] = useState({ archivo: null, resultado: null, tareaId: '' });
@@ -49,11 +53,16 @@ export default function CargaEncuestas({ usuario }) {
   return (
     <section className="panel carga">
       <h2>Carga de encuestas · {fase.nombre}</h2>
-      <div role="tablist" className="tabs">
-        <button role="tab" aria-selected={tab === 'individual'} onClick={() => setTab('individual')}>Una por una</button>
-        <button role="tab" aria-selected={tab === 'csv'} onClick={() => setTab('csv')}>Importar CSV</button>
-      </div>
-      {tab === 'individual' ? (
+
+      {/* Si NO es voluntario, mostramos las pestañas. Si es voluntario, se ocultan y queda fijo "Una por una". */}
+      {!esVoluntario && (
+        <div role="tablist" className="tabs">
+          <button role="tab" aria-selected={tab === 'individual'} onClick={() => setTab('individual')}>Una por una</button>
+          <button role="tab" aria-selected={tab === 'csv'} onClick={() => setTab('csv')}>Importar CSV</button>
+        </div>
+      )}
+
+      {(tab === 'individual' || esVoluntario) ? (
         <FormularioEncuesta formulario={formulario} zonas={zonas} tareas={tareas}
           onEnviar={async (payload) => { const r = await api.post(`/encuestas/fase/${fase.id}`, payload); refrescarDatos(); return r; }} />
       ) : (

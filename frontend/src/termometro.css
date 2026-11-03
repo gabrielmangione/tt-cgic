@@ -198,3 +198,20 @@ textarea{font-family:ui-monospace,Menlo,monospace}
   height: 100%;
   width: 100%;
 }
+
+/* La fila del grid ocupa exactamente el alto disponible (no crece con el contenido) */
+.principal.con-mapa {
+  grid-template-rows: minmax(0, 1fr);
+}
+
+/* Las vistas que no son mapa (organizaciones, encuestas, actividades) scrollean por su cuenta */
+.principal.con-mapa > .panel {
+  overflow-y: auto;
+  min-height: 0;
+  max-height: 100%;
+}
+.vista-scroll {
+  overflow-y: auto;
+  min-height: 0;
+  max-height: 100%;
+}

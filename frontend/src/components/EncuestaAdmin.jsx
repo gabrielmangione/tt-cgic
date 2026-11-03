@@ -17,6 +17,8 @@ export default function EncuestasAdminVista() {
   }
 
   return (
+    <div className="vista-scroll">
+    <div style={{ padding: '24px', maxWidth: '1200px', margin: '0 auto' }}>
     <div style={{ padding: '24px', maxWidth: '1200px', margin: '0 auto' }}>
       <div style={{ marginBottom: '20px' }}>
         <h2>Gestión de Encuestas</h2>
@@ -59,5 +61,7 @@ export default function EncuestasAdminVista() {
         )}
       </div>
     </div>
+      </div>
+  </div>
   );
 }

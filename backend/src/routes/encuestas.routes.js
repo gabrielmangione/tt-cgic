@@ -5,6 +5,7 @@ const prisma = require('../db');
 const { ah, z, httpError } = require('../utils');
 const multicapa = require('../services/multicapa.service');
 const personales = require('../services/personales');
+const autenticar = require('../middleware/auth').autenticar;
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024, files: 1 } });
 const MAX_FILAS_CSV = 5000;
@@ -279,6 +280,22 @@ router.post('/fase/:faseId/reintentar-ia', ah(async (req, res) => {
     where: { faseId: req.params.faseId, estado: 'VIGENTE', estadoIA: 'ERROR' }, data: { estadoIA: 'PENDIENTE', iaIntentos: 0, iaProximoIntento: new Date() },
   });
   res.json({ reencoladas: r.count });
+}));
+
+// GET /api/encuestas/fase/:faseId/mis-encuestas
+router.get('/fase/:faseId/mis-encuestas', autenticar, ah(async (req, res) => {
+  const { faseId } = req.params;
+  const usuarioId = req.user.id; // Dependiendo de cómo guardes el usuario en el request (req.user o req.usuario)
+
+  const encuestas = await prisma.encuesta.findMany({
+    where: {
+      faseId: faseId,
+      cargadaPorId: usuarioId // o cargadoPor: req.user.id, según el esquema de tu base de datos
+    },
+    orderBy: { createdAt: 'desc' }
+  });
+
+  res.json(encuestas);
 }));
 
 module.exports = router;
