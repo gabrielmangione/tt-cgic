@@ -1,6 +1,6 @@
 import { useMapa } from '../store/mapaStore';
 import { api } from '../lib/api';
-import { Globo, Capas, Papelera, Mas, Edificio, Mapa, Circulo, Alerta } from './Iconos';
+import { Globo, Capas, Papelera, Mas, Edificio, Circulo, Alerta } from './Iconos';
 
 const Interruptor = ({ activo, onChange, etiqueta }) => (
   <button type="button" role="switch" aria-checked={activo} aria-label={etiqueta} className="interruptor" onClick={onChange}><span /></button>
@@ -16,15 +16,11 @@ export default function Sidebar({ admin = false, onCargarCapa, colapsado = false
   const capaDe = Object.fromEntries(capas.map((c) => [c.id, c]));
   const geograficas = capas.filter((c) => c.geojson);
 
-  // 1. Identificar el ID o clave de la variable objetivo configurada en el formulario
   const variableObjetivoId = formulario?.variableObjetivoId;
-
-  // 2. Encontrar la pregunta que corresponde a la variable objetivo
   const objetivoP = formulario?.secciones
     ?.flatMap((sec) => sec.preguntas)
     ?.find((p) => p.id === variableObjetivoId || p.clave === variableObjetivoId);
 
-  // 3. Filtrar las secciones y preguntas para EXCLUIR la variable objetivo del listado del mapa de necesidades
   const seccionesFiltradas = formulario?.secciones?.map((sec) => ({
     ...sec,
     preguntas: sec.preguntas.filter((p) => p.id !== variableObjetivoId && p.clave !== variableObjetivoId)
@@ -60,7 +56,6 @@ export default function Sidebar({ admin = false, onCargarCapa, colapsado = false
 
           <h2 className="sb-titulo">Mapa de necesidades</h2>
           
-          {/* Botón Panorama General vinculado a la variable objetivo */}
           <button className={`item${!preguntaActiva ? ' on' : ''}`} onClick={limpiarPregunta}>
             <Globo />
             <span>Panorama general</span>
@@ -69,7 +64,6 @@ export default function Sidebar({ admin = false, onCargarCapa, colapsado = false
 
           {!formulario && <p className="sb-vacio">La fase no tiene formulario todavía.</p>}
           
-          {/* Renderizado de secciones y preguntas SIN la variable objetivo */}
           {seccionesFiltradas.map((sec) => (
             <div key={sec.id}>
               <h3 className="sb-grupo">{sec.nombre}</h3>
@@ -91,13 +85,48 @@ export default function Sidebar({ admin = false, onCargarCapa, colapsado = false
             </div>
           ))}
 
-          <div className="sb-cab">
-            <h2 className="sb-titulo">Capas adicionales</h2>
-            {admin && <button className="icono" onClick={onCargarCapa} aria-label="Cargar capa geográfica"><Mas /></button>}
+          {/* SECCIÓN DE ORGANIZACIONES */}
+          <div className="sb-cab" style={{ marginTop: '20px' }}>
+            <h2 className="sb-titulo">Organizaciones</h2>
+            {admin && (
+              <button 
+                type="button"
+                className="ghost" 
+                style={{ fontSize: '0.75rem', padding: '2px 6px', cursor: 'pointer' }}
+                onClick={() => window.dispatchEvent(new CustomEvent('tt:cambiar-vista', { detail: 'organizaciones' }))}
+              >
+                Gestionar
+              </button>
+            )}
           </div>
           <ul className="sb-capas">
-            <li><Edificio /><span>Organizaciones</span><Interruptor activo={s.verOrganizaciones} onChange={s.toggleOrganizaciones} etiqueta="Organizaciones" /></li>
-            <li><Circulo /><span>Encuestas</span><Interruptor activo={s.mostrarEncuestas} onChange={s.toggleEncuestas} etiqueta="Encuestas" /></li>
+            <li>
+              <Edificio />
+              <span>Capa de organizaciones</span>
+              <Interruptor activo={s.verOrganizaciones} onChange={s.toggleOrganizaciones} etiqueta="Organizaciones" />
+            </li>
+          </ul>
+
+          {/* SECCIÓN DE ENCUESTAS (Ubicada justo debajo de organizaciones) */}
+          <div className="sb-cab" style={{ marginTop: '20px' }}>
+            <h2 className="sb-titulo">Encuestas</h2>
+            {admin && (
+              <button 
+                type="button"
+                className="ghost" 
+                style={{ fontSize: '0.75rem', padding: '2px 6px', cursor: 'pointer' }}
+                onClick={() => window.dispatchEvent(new CustomEvent('tt:cambiar-vista', { detail: 'encuestas' }))}
+              >
+                Gestionar
+              </button>
+            )}
+          </div>
+          <ul className="sb-capas">
+            <li>
+              <Circulo />
+              <span>Capa de encuestas</span>
+              <Interruptor activo={s.mostrarEncuestas} onChange={s.toggleEncuestas} etiqueta="Encuestas" />
+            </li>
             <li><Alerta /><span>Casos más graves</span><Interruptor activo={s.verGraves} onChange={s.toggleGraves} etiqueta="Casos más graves" /></li>
             {s.verGraves && (
               <li className="umbral">
@@ -110,6 +139,36 @@ export default function Sidebar({ admin = false, onCargarCapa, colapsado = false
                 <small>{s.graves ? `${s.graves.total} casos por encima del umbral` : 'Calculando…'}</small>
               </li>
             )}
+          </ul>
+          
+          {/* SECCIÓN DE ACTIVIDADES */}
+          <div className="sb-cab" style={{ marginTop: '20px' }}>
+            <h2 className="sb-titulo">Actividades</h2>
+            {admin && (
+              <button 
+                type="button"
+                className="ghost" 
+                style={{ fontSize: '0.75rem', padding: '2px 6px', cursor: 'pointer' }}
+                onClick={() => window.dispatchEvent(new CustomEvent('tt:cambiar-vista', { detail: 'actividades' }))}
+              >
+                Gestionar
+              </button>
+            )}
+          </div>
+          <ul className="sb-capas">
+            <li>
+              <Alerta />
+              <span>Capa de actividades</span>
+              <Interruptor activo={s.verActividades} onChange={s.toggleActividades} etiqueta="Actividades" />
+            </li>
+          </ul>
+
+          {/* CAPAS ADICIONALES */}
+          <div className="sb-cab" style={{ marginTop: '20px' }}>
+            <h2 className="sb-titulo">Capas adicionales</h2>
+            {admin && <button className="icono" onClick={onCargarCapa} aria-label="Cargar capa geográfica"><Mas /></button>}
+          </div>
+          <ul className="sb-capas">
             {geograficas.map((c) => (
               <li key={c.id}>
                 <Capas /><span>{c.nombre}</span>

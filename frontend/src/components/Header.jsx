@@ -36,7 +36,9 @@ export default function Header({
         </h1>
       </div>
 
-      <div className="selector">
+
+      <div className="cab-der">
+        <div className="selector">
         <select aria-label="Evento" value={evento?.id ?? ''} onChange={(e) => cargarEvento(e.target.value)}>
           {!eventos.length && <option value="">Sin eventos</option>}
           {eventos.map((e) => <option key={e.id} value={e.id}>{e.nombre}</option>)}
@@ -53,13 +55,6 @@ export default function Header({
           {admin && <button className="mas" aria-label="Nueva fase" onClick={() => setModal('fase')}><span className="mas-icon">+</span></button>}
         </div>
       )}
-
-      <div className="cab-der">
-        {vista !== 'mapa' && <button className="ghost" onClick={() => setVista('mapa')}>← Volver al mapa</button>}
-        {vista !== 'carga' && <button className="ghost" onClick={() => setVista('carga')}>Cargar encuestas</button>}
-        {vista !== 'encuestas' && <button className="ghost" onClick={() => setVista('encuestas')}>Encuestas</button>}
-        {vista !== 'tareas' && <button className="ghost" onClick={() => setVista('tareas')}>Actividades</button>}
-        {admin && <button className="ghost borde" onClick={() => irConfig('organizaciones')}><Usuarios />Organizaciones</button>}
         <div className="avatar-wrap">
           <button className="avatar" aria-label="Cuenta" aria-expanded={menu} onClick={() => setMenu(!menu)}>{iniciales}</button>
           {menu && (
@@ -68,6 +63,7 @@ export default function Header({
               <button role="menuitem" onClick={() => ir('perfil')}>Mi perfil</button>
               {puedeTareas && <button role="menuitem" onClick={() => ir('voluntarios')}>Voluntarios</button>}
               {admin && <button role="menuitem" onClick={() => ir('panel')}>Panel de control</button>}
+              {admin && <button role="menuitem" onClick={() => ir('organizaciones')}>Organizaciones</button>}
               {admin && <button role="menuitem" onClick={() => irConfig('usuarios')}>Configuración</button>}
               <button role="menuitem" onClick={() => { setToken(null); setLogueado(false); }}>Salir</button>
             </div>

@@ -16,6 +16,8 @@ import FormulaBuilder from './components/FormulaBuilder';
 import MapUploader from './components/MapUploader';
 import Modal from './components/Modal';
 import { EventoNuevo, FaseNueva } from './components/EventoForm';
+import OrganizacionesAdmin from './components/OrganizacionesAdmin';
+import EncuestasAdminVista from './components/EncuestaAdmin';
 import './termometro.css';
 
 function Login({ onOk }) {
@@ -83,10 +85,19 @@ export default function App() {
     return () => clearInterval(t);
   }, [logueado, vista, refrescarDatos]);
 
+  useEffect(() => {
+    const handleCambiarVista = (e) => setVista(e.detail);
+    window.addEventListener('tt:cambiar-vista', handleCambiarVista);
+    return () => window.removeEventListener('tt:cambiar-vista', handleCambiarVista);
+  }, []);
+
   if (!logueado) return <Login onOk={(u) => { setUsuario(u); setLogueado(true); }} />;
   
   const irConfig = (tab) => { setTabConfig(tab); setVista('config'); setMenu(false); };
   const ir = (v) => { setVista(v); setMenu(false); };
+
+  // Definimos si la vista actual debe mostrar el Sidebar a la izquierda
+  const muestraSidebar = (vista === 'mapa' || vista === 'organizaciones' || vista === 'encuestas' || vista === 'actividades' || vista === 'tareas') && evento;
 
   return (
     <div className="app">
@@ -111,18 +122,18 @@ export default function App() {
         setLogueado={setLogueado}
       />
 
-      <main className={vista === 'mapa' && evento ? `principal con-mapa ${sidebarColapsado ? 'sidebar-colapsada' : ''}` : 'principal'}>
-        {vista === 'mapa' && evento && (
-          <>
-            <Sidebar 
-              admin={admin} 
-              onCargarCapa={() => setModal('mapa-capa')} 
-              colapsado={sidebarColapsado}
-              onToggleColapsar={() => setSidebarColapsado(!sidebarColapsado)}
-            />
-            <MapView />
-          </>
+      <main className={muestraSidebar ? `principal con-mapa ${sidebarColapsado ? 'sidebar-colapsada' : ''}` : 'principal'}>
+        {muestraSidebar && (
+          <Sidebar 
+            admin={admin} 
+            onCargarCapa={() => setModal('mapa-capa')} 
+            colapsado={sidebarColapsado}
+            onToggleColapsar={() => setSidebarColapsado(!sidebarColapsado)}
+          />
         )}
+
+        {/* Renderizado de vistas */}
+        {vista === 'mapa' && evento && <MapView />}
         {vista === 'mapa' && !evento && (
           <div className="panel vacio-inicial">
             <h2>Todavía no hay eventos</h2>
@@ -131,12 +142,14 @@ export default function App() {
           </div>
         )}
         {vista === 'carga' && <CargaEncuestas usuario={usuario} />}
-        {vista === 'encuestas' && <GestionEncuestas usuario={usuario} />}
         {vista === 'tareas' && <Tareas usuario={usuario} />}
         {vista === 'voluntarios' && puedeTareas && <Voluntarios usuario={usuario} />}
         {vista === 'perfil' && <Perfil usuario={usuario} onActualizado={(u) => setUsuario((x) => ({ ...x, ...u }))} />}
         {vista === 'panel' && admin && <PanelAdmin onCambioEventos={recargarYResetearEventos} />}
         {vista === 'config' && admin && <Configuracion key={tabConfig} usuario={usuario} tabInicial={tabConfig} />}
+        {vista === 'organizaciones' && admin && <OrganizacionesAdmin />}
+        {vista === 'encuestas' && admin && <EncuestasAdminVista />}
+        {vista === 'actividades' && <Tareas usuario={usuario} admin={admin} />}
       </main>
 
       {vista === 'mapa' && evento && <Footer admin={admin} onAgregar={() => setModal('estadistico')} />}

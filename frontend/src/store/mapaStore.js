@@ -2,13 +2,13 @@ import { create } from 'zustand';
 import { api } from '../lib/api';
 
 /**
- * Estado multicapa: qué capas se ven, qué pregunta ("necesidad") colorea las zonas y de qué capa toma sus resúmenes.
- * resumenes[capaId] = { [zonaKey]: { [preguntaId]: { n, suma, categorias } } }
+- Estado multicapa: qué capas se ven, qué pregunta ("necesidad") colorea las zonas y de qué capa toma sus resúmenes.
+- resumenes[capaId] = { [zonaKey]: { [preguntaId]: { n, suma, categorias } } }
  */
 export const useMapa = create((set, get) => ({
   evento: null, jurisdiccion: null, fase: null, formulario: null,
   capas: [], zonas: [], encuestas: [], resumenes: {},
-  visibles: {}, mostrarEncuestas: true, verLimites: true, verOrganizaciones: false,
+  visibles: {}, mostrarEncuestas: true, verLimites: true, verOrganizaciones: false, verActividades: false, // <-- Añadido verActividades
   panorama: null,         // { zonas: { [zonaId]: { n, promedio } }, objetivo, total, promedio }
   graves: null, verGraves: false, umbral: 70, // capa «casos más graves»
   preguntaActiva: null,   // { preguntaId, capaId } — null = Panorama general
@@ -79,6 +79,7 @@ export const useMapa = create((set, get) => ({
   toggleEncuestas: () => set((s) => ({ mostrarEncuestas: !s.mostrarEncuestas })),
   toggleLimites: () => set((s) => ({ verLimites: !s.verLimites })),
   toggleOrganizaciones: () => set((s) => ({ verOrganizaciones: !s.verOrganizaciones })),
+  toggleActividades: () => set((s) => ({ verActividades: !s.verActividades })), // <-- Función toggle añadida
 
   async activarPregunta(preguntaId, capaId) {
     set({ preguntaActiva: { preguntaId, capaId } });

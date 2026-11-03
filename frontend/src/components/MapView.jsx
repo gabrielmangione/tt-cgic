@@ -20,7 +20,7 @@ const iconoCapa = (capa) => L.divIcon({
 });
 
 export default function MapView() {
-  const { jurisdiccion, zonas, capas, visibles, encuestas, mostrarEncuestas, verLimites, verOrganizaciones, preguntaActiva, resumenes, seleccionar, formulario, panorama, graves, verGraves, cargarGraves, umbral } = useMapa();
+  const { jurisdiccion, zonas, capas, visibles, encuestas, mostrarEncuestas, verLimites, verOrganizaciones, preguntaActiva, resumenes, seleccionar, formulario, panorama, graves, verGraves, cargarGraves, umbral,verActividades } = useMapa();
   
   const objetivo = useMemo(() => formulario?.secciones.flatMap((s) => s.preguntas).find((p) => p.id === formulario.variableObjetivoId) ?? null, [formulario]);
   const generalId = capas.find((c) => c.tipo === 'GENERAL')?.id;
@@ -64,15 +64,23 @@ export default function MapView() {
 
         {verLimites && <GeoJSON key={`j-${jurisdiccion.id}`} data={jurisdiccion.geometria} style={{ color: '#0E1B26', weight: 2, fill: false }} interactive={false} />}
 
-        {/* Zonas coloreadas por la variable objetivo (en panorama general) o por la necesidad activa */}
+        {/* Zonas coloreadas por la variable objetivo o necesidad activa */}
         {zonas.filter((z) => z.geometria).map((z) => {
-          const idx = indices[z.id], conOrg = verOrganizaciones && z.organizaciones?.length;
-          const viv = !preguntaActiva ? panorama?.zonas?.[z.id]?.n : null;
+          const idx = indices[z.id];
+          const conOrg = verOrganizaciones && z.organizaciones?.length;
+          const conActividad = verActividades && z.tieneActividades; // <--- Validación de actividades
+          const viv = !preguntaActiva ? panorama?.zones?.[z.id]?.n : null;
+          
           return (
             <GeoJSON
-              key={`z-${z.id}-${preguntaEfectiva?.preguntaId ?? 'g'}-${idx}-${!!conOrg}`}
+              key={`z-${z.id}-${preguntaEfectiva?.preguntaId ?? 'g'}-${idx}-${!!conOrg}-${!!conActividad}`}
               data={z.geometria}
-              style={{ color: conOrg ? '#2A6FDB' : '#fff', weight: conOrg ? 3 : 1.5, fillColor: idx == null ? '#9FB4C0' : rampa(idx / 100), fillOpacity: idx == null ? 0.15 : 0.62 }}
+              style={{ 
+                color: conOrg ? '#2A6FDB' : conActividad ? '#28a745' : '#fff', 
+                weight: conOrg || conActividad ? 3 : 1.5, 
+                fillColor: idx == null ? '#9FB4C0' : rampa(idx / 100), 
+                fillOpacity: idx == null ? 0.15 : 0.62 
+              }}
               onEachFeature={(_f, layer) => {
                 const el = document.createElement('span');
                 el.textContent = `${z.nombre} — ${idx == null ? 'sin datos' : `${objetivo && !preguntaActiva ? objetivo.etiqueta + ': ' : 'Índice '}${idx}/100`}${viv ? ` · ${viv} viviendas` : ''}`;
@@ -82,7 +90,6 @@ export default function MapView() {
             />
           );
         })}
-
         {capas.filter((c) => c.geojson && visibles[c.id]).map((c) => (
           <GeoJSON
             key={`c-${c.id}-${c.color}-${c.icon}-${c.geojson.features.length}`}
@@ -113,6 +120,24 @@ export default function MapView() {
               eventHandlers={{ click: () => seleccionar({ tipo: 'grave', caso: g, aproximada: g.latitud == null }) }} />
           );
         })}
+
+        {verActividades && zonas.filter((z) => z.geometria && z.tieneActividades).map((z) => (
+          <GeoJSON
+            key={`actividad-zona-${z.id}`}
+            data={z.geometria}
+            style={{ 
+              color: '#28a745', 
+              weight: 3, 
+              fillColor: '#28a745', 
+              fillOpacity: 0.45 
+            }}
+            onEachFeature={(_f, layer) => {
+              const el = document.createElement('span');
+              el.textContent = `Actividades activas en: ${z.nombre}`;
+              layer.bindTooltip(el, { sticky: true });
+            }}
+          />
+        ))}
       </MapContainer>
 
       {critica?.zona && (

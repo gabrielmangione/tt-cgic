@@ -188,7 +188,7 @@ function MapasYCapas() {
                   </td>
                   <td>
                     <button 
-                      className="ghost" 
+                      className="ghost peligro" 
                       onClick={eliminarMapaBase}
                     >
                       Quitar principal
@@ -223,7 +223,7 @@ function MapasYCapas() {
   );
 }
 
-const TABS = [['usuarios', 'Usuarios'], ['organizaciones', 'Organizaciones'], ['zonas', 'Zonas'], ['mapas', 'Mapas y capas'], ['formulario', 'Formulario'], ['estadisticos', 'Estadísticos']];
+const TABS = [['usuarios', 'Usuarios'], /*['organizaciones', 'Organizaciones'],*/ ['zonas', 'Zonas'], ['mapas', 'Mapas y capas'], ['formulario', 'Formulario'], ['estadisticos', 'Estadísticos']];
 
 // Montado en App.jsx sólo si usuario.rol === 'ADMIN'. El backend vuelve a exigir el rol en cada ruta.
 export default function Configuracion({ usuario, tabInicial = 'usuarios' }) {
@@ -236,7 +236,7 @@ export default function Configuracion({ usuario, tabInicial = 'usuarios' }) {
       </div>
       <section className={tab === 'mapas' ? '' : 'panel'}>
         {tab === 'usuarios' && <Usuarios yo={usuario} />}
-        {tab === 'organizaciones' && <Organizaciones />}
+        {/*tab === 'organizaciones' && <Organizaciones />*/}
         {tab === 'zonas' && <Zonas />}
         {tab === 'mapas' && (evento ? <MapasYCapas /> : <p className="vacio">Elegí un evento.</p>)}
         {tab === 'formulario' && (evento ? <FormularioEditor /> : <p className="vacio">Elegí un evento.</p>)}
